@@ -122,7 +122,7 @@ if not st.session_state.login:
     col1, col2 = st.columns(2)
     with col1:
         if st.button("Iniciar sesión"):
-            if correo.endswith("@bosch.com") and validar_usuario(correo, contrasena):
+            if correo.lower().endswith("@mx.bosch.com") and validar_usuario(correo, contrasena):
                 st.session_state.login = True
                 st.success("✅ Sesión iniciada correctamente")
                 st.experimental_rerun()
@@ -130,11 +130,11 @@ if not st.session_state.login:
                 st.error("❌ Usuario o contraseña incorrectos")
     with col2:
         if st.button("Registrarse"):
-            if correo.endswith("@bosch.com") and contrasena:
+            if correo.lower().endswith("@mx.bosch.com") and contrasena:
                 if crear_usuario(correo, contrasena):
                     st.success("✅ Usuario registrado. Ahora inicia sesión.")
             else:
-                st.error("❌ Solo correos Bosch permitidos y contraseña no vacía")
+                st.error("❌ Solo correos Bosch MX permitidos y contraseña no vacía")
 
 # =========================
 # APP PRINCIPAL
@@ -156,36 +156,5 @@ if st.session_state.login:
                 descripcion = st.text_area("Descripción del material")
             with col2:
                 proveedor = st.text_input("Proveedor sugerido")
-                cantidad = st.number_input("Cantidad requerida", min_value=1)
-                prioridad = st.selectbox("Prioridad", ["Normal", "Crítica"])
-                imagen = st.file_uploader("Imagen del material", type=["jpg","png","jpeg"])
-            enviar = st.form_submit_button("Registrar material")
-
-        if enviar:
-            responsable = LINEAS[linea]["responsable"]
-            correo_responsable = LINEAS[linea]["correo"]
-
-            nuevo_registro = {
-                "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "Solicitante": correo,
-                "Línea": linea,
-                "Estación": estacion,
-                "Descripción": descripcion,
-                "Proveedor": proveedor,
-                "Cantidad": cantidad,
-                "Prioridad": prioridad,
-                "Responsable": responsable,
-                "Correo responsable": correo_responsable,
-                "Estatus": "En cotización"
-            }
-
-            df_nuevo = pd.DataFrame([nuevo_registro])
-
-            if os.path.exists(ARCHIVO_EXCEL):
-                df_existente = pd.read_excel(ARCHIVO_EXCEL)
-                df_final = pd.concat([df_existente, df_nuevo], ignore_index=True)
-            else:
-                df_final = df_nuevo
-
-            df_fi_
+                cantidad = st.number_input("Cantidad req_
 
