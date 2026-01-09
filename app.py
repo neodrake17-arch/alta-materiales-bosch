@@ -107,6 +107,8 @@ def validar_usuario(correo, contrasena):
 # =========================
 if "login" not in st.session_state:
     st.session_state.login = False
+if "just_logged_in" not in st.session_state:
+    st.session_state.just_logged_in = False
 
 # =========================
 # LOGIN
@@ -124,8 +126,7 @@ if not st.session_state.login:
         if st.button("Iniciar sesión"):
             if correo.lower().endswith("@mx.bosch.com") and validar_usuario(correo, contrasena):
                 st.session_state.login = True
-                st.success("✅ Sesión iniciada correctamente")
-                st.experimental_rerun()  # Seguro aquí
+                st.session_state.just_logged_in = True
             else:
                 st.error("❌ Usuario o contraseña incorrectos")
     with col2:
@@ -135,6 +136,13 @@ if not st.session_state.login:
                     st.success("✅ Usuario registrado. Ahora inicia sesión.")
             else:
                 st.error("❌ Solo correos Bosch MX permitidos y contraseña no vacía")
+
+# =========================
+# FORZAR RECARGA SI FLAG ACTIVO
+# =========================
+if st.session_state.just_logged_in:
+    st.session_state.just_logged_in = False
+    st.experimental_rerun()
 
 # =========================
 # APP PRINCIPAL
@@ -189,7 +197,7 @@ if st.session_state.login:
 
             if os.path.exists(ARCHIVO_EXCEL):
                 df_existente = pd.read_excel(ARCHIVO_EXCEL)
-                df_final = pd.concat([df_existente, df_nuevo], ignore_index=True)  # CORRECTO
+                df_final = pd.concat([df_existente, df_nuevo], ignore_index=True)
             else:
                 df_final = df_nuevo
 
@@ -237,5 +245,6 @@ if st.session_state.login:
     elif opcion == "🚪 Cerrar sesión":
         st.session_state.login = False
         st.experimental_rerun()
+
 
 
