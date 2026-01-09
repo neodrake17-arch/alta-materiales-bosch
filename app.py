@@ -187,19 +187,5 @@ if st.session_state.login:
             else:
                 df_final = df_nuevo
 
-            df_final.to_excel(ARCHIVO_EXCEL, index=False)
-            st.success("✅ Material registrado correctamente")
-            st.info(f"📧 Responsable asignado: {responsable}")
-
-    elif opcion == "📊 Estatus de materiales":
-        st.header("📊 Estatus de materiales")
-        if os.path.exists(ARCHIVO_EXCEL):
-            df = pd.read_excel(ARCHIVO_EXCEL)
-            st.markdown("### Lista de materiales")
-            for idx, row in df.iterrows():
-                color = COLOR_ESTATUS.get(row["Estatus"], "#cccccc")
-                st.markdown(f"""
-                <div class="card" style="background-color: {color}">
-                📌 <b>{row['Descripción']}</b><br>
-                Línea: {row['Línea]()
+            df_fi_
 
