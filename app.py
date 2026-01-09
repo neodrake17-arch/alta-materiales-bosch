@@ -146,15 +146,96 @@ if st.session_state.login:
     st.sidebar.markdown("---")
     opcion = st.sidebar.radio("", ["📝 Alta de material", "📊 Estatus de materiales", "📈 Dashboard", "🚪 Cerrar sesión"])
 
+    # =========================
+    # ALTA DE MATERIAL
+    # =========================
     if opcion == "📝 Alta de material":
         st.header("📝 Alta de material")
         with st.form("form_alta_material"):
             col1, col2 = st.columns(2)
+
             with col1:
                 linea = st.selectbox("Línea", list(LINEAS.keys()))
                 estacion = st.text_input("Estación")
                 descripcion = st.text_area("Descripción del material")
+
             with col2:
                 proveedor = st.text_input("Proveedor sugerido")
-                cantidad = st.number_input("Cantidad req_
+                cantidad = st.number_input("Cantidad requerida", min_value=1)
+                prioridad = st.selectbox("Prioridad", ["Normal", "Crítica"])
+                imagen = st.file_uploader("Imagen del material", type=["jpg", "png", "jpeg"])
+
+            enviar = st.form_submit_button("Registrar material")
+
+        if enviar:
+            responsable = LINEAS[linea]["responsable"]
+            correo_responsable = LINEAS[linea]["correo"]
+
+            nuevo_registro = {
+                "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                "Solicitante": correo,
+                "Línea": linea,
+                "Estación": estacion,
+                "Descripción": descripcion,
+                "Proveedor": proveedor,
+                "Cantidad": cantidad,
+                "Prioridad": prioridad,
+                "Responsable": responsable,
+                "Correo responsable": correo_responsable,
+                "Estatus": "En cotización"
+            }
+
+            df_nuevo = pd.DataFrame([nuevo_registro])
+
+            if os.path.exists(ARCHIVO_EXCEL):
+                df_existente = pd.read_excel(ARCHIVO_EXCEL)
+                df_final = pd.concat([df_existente, df_nuevo], ignore_index=True)
+            else:
+                df_final = df_nuevo
+
+            df_final.to_excel(ARCHIVO_EXCEL, index=False)
+            st.success("✅ Material registrado correctamente")
+            st.info(f"📧 Responsable asignado: {responsable}")
+
+    # =========================
+    # ESTATUS DE MATERIALES
+    # =========================
+    elif opcion == "📊 Estatus de materiales":
+        st.header("📊 Estatus de materiales")
+        if os.path.exists(ARCHIVO_EXCEL):
+            df = pd.read_excel(ARCHIVO_EXCEL)
+            st.markdown("### Lista de materiales")
+            for idx, row in df.iterrows():
+                color = COLOR_ESTATUS.get(row["Estatus"], "#cccccc")
+                st.markdown(f"""
+                <div class="card" style="background-color: {color}">
+                📌 <b>{row['Descripción']}</b><br>
+                Línea: {row['Línea']} | Estación: {row['Estación']}<br>
+                Cantidad: {row['Cantidad']} | Prioridad: {row['Prioridad']}<br>
+                Solicitante: {row['Solicitante']} | Responsable: {row['Responsable']}<br>
+                Estatus: {row['Estatus']}
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("No hay materiales registrados.")
+
+    # =========================
+    # DASHBOARD
+    # =========================
+    elif opcion == "📈 Dashboard":
+        st.header("📈 Dashboard")
+        if os.path.exists(ARCHIVO_EXCEL):
+            df = pd.read_excel(ARCHIVO_EXCEL)
+            estatus_count = df["Estatus"].value_counts()
+            st.bar_chart(estatus_count)
+        else:
+            st.info("No hay materiales registrados.")
+
+    # =========================
+    # CERRAR SESIÓN
+    # =========================
+    elif opcion == "🚪 Cerrar sesión":
+        st.session_state.login = False
+        st.experimental_rerun()
+
 
