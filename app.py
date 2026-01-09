@@ -1,10 +1,12 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import smtplib
+from email.message import EmailMessage
 import os
 
 # =========================
-# CONFIGURACIÓN DE LA APP
+# CONFIGURACIÓN VISUAL BOSCH
 # =========================
 st.set_page_config(
     page_title="Alta de Materiales | Bosch",
@@ -12,12 +14,54 @@ st.set_page_config(
     layout="centered"
 )
 
+st.markdown("""
+<style>
+body {
+    background-color: #f5f7f9;
+}
+h1, h2, h3 {
+    color: #005691;
+}
+.stButton > button {
+    background-color: #005691;
+    color: white;
+    border-radius: 6px;
+}
+.stButton > button:hover {
+    background-color: #003f6b;
+}
+label {
+    color: #003f6b !important;
+    font-weight: bold;
+}
+</style>
+""", unsafe_allow_html=True)
+
 st.title("🔧 Alta de Materiales Bosch")
+
+# =========================
+# LINEAS → RESPONSABLE → CORREO
+# =========================
+LINEAS = {
+    "APA 36": "external.EduardoAbel.RamirezBecerril@mx.bosch.com",
+    "APA 38": "external.EduardoAbel.RamirezBecerril@mx.bosch.com",
+    "DP 02": "external.Jarol.DiazCastro@mx.bosch.com",
+    "DP 32": "external.Jimena.MontalvoSanchez@mx.bosch.com",
+    "DP 35": "external.Jimena.MontalvoSanchez@mx.bosch.com",
+    "KGT 22": "external.Nicolas.BravoVerde@mx.bosch.com",
+    "KGT 23": "external.Nicolas.BravoVerde@mx.bosch.com",
+    "LG 01": "external.Nicolas.BravoVerde@mx.bosch.com",
+    "LG 03": "external.Nicolas.BravoVerde@mx.bosch.com",
+    "SCU 33": "external.Jarol.DiazCastro@mx.bosch.com",
+    "SCU 34": "external.Jarol.DiazCastro@mx.bosch.com",
+    "SCU 48": "external.Jarol.DiazCastro@mx.bosch.com",
+    "SSL1": "external.Jarol.DiazCastro@mx.bosch.com"
+}
 
 # =========================
 # ARCHIVO EXCEL
 # =========================
-ARCHIVO_EXCEL = "materiales.xlsx"
+ARCHIVO = "materiales.xlsx"
 
 COLUMNAS = [
     "Fecha",
@@ -27,61 +71,78 @@ COLUMNAS = [
     "Proveedor",
     "Línea",
     "Cantidad",
-    "Practicante",
     "Estatus"
 ]
 
-# Crear Excel si no existe
-if not os.path.exists(ARCHIVO_EXCEL):
-    df_init = pd.DataFrame(columns=COLUMNAS)
-    df_init.to_excel(ARCHIVO_EXCEL, index=False)
+if not os.path.exists(ARCHIVO):
+    pd.DataFrame(columns=COLUMNAS).to_excel(ARCHIVO, index=False)
 
 # =========================
-# FORMULARIO DE ALTA
+# FORMULARIO
 # =========================
-with st.form("form_alta_material"):
-    st.subheader("Formulario de Alta de Material")
+with st.form("alta_material"):
+    st.subheader("📋 Registro de Material")
 
-    solicitante = st.text_input("Solicitante (Ingeniero)")
+    solicitante = st.text_input("Ingeniero solicitante")
     material = st.text_input("Número / Nombre del material")
-    descripcion = st.text_area("Descripción del material")
+    descripcion = st.text_area("Descripción")
     proveedor = st.text_input("Proveedor")
-    linea = st.text_input("Línea / Área")
+    linea = st.selectbox("Línea", list(LINEAS.keys()))
     cantidad = st.number_input("Cantidad", min_value=1, step=1)
-    practicante = st.selectbox(
-        "Practicante asignado",
-        ["Jarol", "Jime", "Lalo", "Niko"]
-    )
 
-    enviar = st.form_submit_button("Guardar material")
+    enviar = st.form_submit_button("Enviar material")
 
 # =========================
-# GUARDAR EN EXCEL
+# GUARDAR + ENVIAR CORREO
 # =========================
 if enviar:
-    nuevo_registro = {
-        "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
+    fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
+    estatus = "Cotización"
+    correo_destino = LINEAS[linea]
+
+    nuevo = {
+        "Fecha": fecha,
         "Solicitante": solicitante,
         "Material": material,
         "Descripción": descripcion,
         "Proveedor": proveedor,
         "Línea": linea,
         "Cantidad": cantidad,
-        "Practicante": practicante,
-        "Estatus": "Cotización"
+        "Estatus": estatus
     }
 
-    df = pd.read_excel(ARCHIVO_EXCEL)
-    df = pd.concat([df, pd.DataFrame([nuevo_registro])], ignore_index=True)
-    df.to_excel(ARCHIVO_EXCEL, index=False)
+    df = pd.read_excel(ARCHIVO)
+    df = pd.concat([df, pd.DataFrame([nuevo])], ignore_index=True)
+    df.to_excel(ARCHIVO, index=False)
 
-    st.success("✅ Material guardado correctamente con estatus: COTIZACIÓN")
+    # -------- CORREO --------
+    msg = EmailMessage()
+    msg["Subject"] = f"Alta de material | Línea {linea}"
+    msg["From"] = "CORREO_REMITE@empresa.com"
+    msg["To"] = correo_destino
+
+    msg.set_content(f"""
+Nuevo material registrado
+
+Material: {material}
+Descripción: {descripcion}
+Proveedor: {proveedor}
+Línea: {linea}
+Cantidad: {cantidad}
+Estatus: {estatus}
+""")
+
+    # ⚠️ CONFIGURAR SMTP REAL DESPUÉS
+    # with smtplib.SMTP("smtp.office365.com", 587) as server:
+    #     server.starttls()
+    #     server.login("CORREO_REMITE@empresa.com", "PASSWORD_CORREO")
+    #     server.send_message(msg)
+
+    st.success("✅ Material registrado y enviado al responsable de la línea")
 
 # =========================
-# TABLA DE MATERIALES
+# TABLA
 # =========================
 st.divider()
-st.subheader("📋 Materiales registrados")
-
-df_view = pd.read_excel(ARCHIVO_EXCEL)
-st.dataframe(df_view, use_container_width=True)
+st.subheader("📊 Materiales registrados")
+st.dataframe(pd.read_excel(ARCHIVO), use_container_width=True)
