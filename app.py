@@ -125,6 +125,7 @@ if not st.session_state.login:
             if correo.lower().endswith("@mx.bosch.com") and validar_usuario(correo, contrasena):
                 st.session_state.login = True
                 st.success("✅ Sesión iniciada correctamente")
+                # rerun seguro fuera de st.form
                 st.experimental_rerun()
             else:
                 st.error("❌ Usuario o contraseña incorrectos")
@@ -189,53 +190,6 @@ if st.session_state.login:
 
             if os.path.exists(ARCHIVO_EXCEL):
                 df_existente = pd.read_excel(ARCHIVO_EXCEL)
-                df_final = pd.concat([df_existente, df_nuevo], ignore_index=True)
-            else:
-                df_final = df_nuevo
-
-            df_final.to_excel(ARCHIVO_EXCEL, index=False)
-            st.success("✅ Material registrado correctamente")
-            st.info(f"📧 Responsable asignado: {responsable}")
-
-    # =========================
-    # ESTATUS DE MATERIALES
-    # =========================
-    elif opcion == "📊 Estatus de materiales":
-        st.header("📊 Estatus de materiales")
-        if os.path.exists(ARCHIVO_EXCEL):
-            df = pd.read_excel(ARCHIVO_EXCEL)
-            st.markdown("### Lista de materiales")
-            for idx, row in df.iterrows():
-                color = COLOR_ESTATUS.get(row["Estatus"], "#cccccc")
-                st.markdown(f"""
-                <div class="card" style="background-color: {color}">
-                📌 <b>{row['Descripción']}</b><br>
-                Línea: {row['Línea']} | Estación: {row['Estación']}<br>
-                Cantidad: {row['Cantidad']} | Prioridad: {row['Prioridad']}<br>
-                Solicitante: {row['Solicitante']} | Responsable: {row['Responsable']}<br>
-                Estatus: {row['Estatus']}
-                </div>
-                """, unsafe_allow_html=True)
-        else:
-            st.info("No hay materiales registrados.")
-
-    # =========================
-    # DASHBOARD
-    # =========================
-    elif opcion == "📈 Dashboard":
-        st.header("📈 Dashboard")
-        if os.path.exists(ARCHIVO_EXCEL):
-            df = pd.read_excel(ARCHIVO_EXCEL)
-            estatus_count = df["Estatus"].value_counts()
-            st.bar_chart(estatus_count)
-        else:
-            st.info("No hay materiales registrados.")
-
-    # =========================
-    # CERRAR SESIÓN
-    # =========================
-    elif opcion == "🚪 Cerrar sesión":
-        st.session_state.login = False
-        st.experimental_rerun()
+                df_final = pd.concat([df_existen_]()_
 
 
