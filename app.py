@@ -6,7 +6,7 @@ import uuid
 from io import BytesIO
 
 # ---------------------------------------------------
-# CONFIGURACIÓN GENERAL Y ESTILOS
+# CONFIGURACIÓN GENERAL Y ESTILOS (sidebar sin CSS)
 # ---------------------------------------------------
 st.set_page_config(
     page_title="Alta de Materiales Bosch",
@@ -15,12 +15,6 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-/* Fondo general y tipografía */
-body {
-    background-color: #ffffff;
-    font-family: "Arial", sans-serif;
-}
-
 /* Títulos con azul Bosch */
 h1, h2, h3 {
     color: #005691;
@@ -44,20 +38,6 @@ h1, h2, h3 {
     border-radius: 8px;
     border: 1px solid #cccccc;
     padding: 5px;
-}
-
-/* Sidebar */
-section[data-testid="stSidebar"] {
-    background-color: #f5f5f5;
-}
-
-/* Tarjetas */
-.card {
-    padding: 15px;
-    border-radius: 10px;
-    background-color: #f7f7f7;
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.05);
-    margin-bottom: 10px;
 }
 
 /* Colores de estatus */
@@ -85,7 +65,7 @@ section[data-testid="stSidebar"] {
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------
-# CONSTANTES, ARCHIVOS Y ESTRUCTURA
+# CONSTANTES Y ARCHIVOS
 # ---------------------------------------------------
 DB_FILE = "bd_materiales.xlsx"
 os.makedirs("imagenes", exist_ok=True)
@@ -119,7 +99,7 @@ LINEAS = {
 }
 
 USERS = {
-    "admin": {"pwd": "bosch123", "rol": "jefa"},
+    "admin": {"pwd": "jarol123", "rol": "jefa"},
     "practicante": {"pwd": "alta2026", "rol": "practicante"},
     "inge": {"pwd": "inge2026", "rol": "ingeniero"}
 }
@@ -128,46 +108,19 @@ USERS = {
 if not os.path.exists(DB_FILE):
     with pd.ExcelWriter(DB_FILE, engine="openpyxl") as writer:
         df_materiales = pd.DataFrame(columns=[
-            "ID_Material",
-            "ID_Solicitud",
-            "Fecha_Solicitud",
-            "Ingeniero",
-            "Linea",
-            "Prioridad",
-            "Comentario_Solicitud",
-
-            "Item",
-            "Descripcion",
-            "Estacion",
-            "Frecuencia_Cambio",
-            "Cant_Stock_Requerida",
-            "Cant_Equipos",
-            "Cant_Partes_Equipo",
-            "RP_Sugerido",
-            "Manufacturer",
-
-            "Estatus",
-            "Practicante_Asignado",
-
-            "Fecha_Revision",
-            "Fecha_Cotizacion",
-            "Fecha_Alta_SAP",
-            "Fecha_InfoRecord",
-            "Fecha_Finalizada",
-
-            "Comentario_Estatus",
-            "Material_SAP",
-            "InfoRecord_SAP"
+            "ID_Material", "ID_Solicitud", "Fecha_Solicitud", "Ingeniero", "Linea",
+            "Prioridad", "Comentario_Solicitud", "Item", "Descripcion", "Estacion",
+            "Frecuencia_Cambio", "Cant_Stock_Requerida", "Cant_Equipos",
+            "Cant_Partes_Equipo", "RP_Sugerido", "Manufacturer", "Estatus",
+            "Practicante_Asignado", "Fecha_Revision", "Fecha_Cotizacion",
+            "Fecha_Alta_SAP", "Fecha_InfoRecord", "Fecha_Finalizada",
+            "Comentario_Estatus", "Material_SAP", "InfoRecord_SAP"
         ])
         df_materiales.to_excel(writer, sheet_name="materiales", index=False)
 
         df_historial = pd.DataFrame(columns=[
-            "ID_Material",
-            "Fecha_Cambio",
-            "Usuario",
-            "Estatus_Anterior",
-            "Estatus_Nuevo",
-            "Comentario"
+            "ID_Material", "Fecha_Cambio", "Usuario", "Estatus_Anterior",
+            "Estatus_Nuevo", "Comentario"
         ])
         df_historial.to_excel(writer, sheet_name="historial", index=False)
 
@@ -216,31 +169,34 @@ if "logged" not in st.session_state:
 
 if not st.session_state.logged:
     st.title("Acceso – Alta de Materiales Bosch")
-    user = st.text_input("Usuario")
-    pwd = st.text_input("Contraseña", type="password")
-    if st.button("Iniciar sesión"):
+    col1, col2 = st.columns([2, 1])
+    with col1:
+        user = st.text_input("Usuario")
+    with col2:
+        pwd = st.text_input("Contraseña", type="password")
+    
+    if st.button("Iniciar sesión", type="primary"):
         if user in USERS and USERS[user]["pwd"] == pwd:
             st.session_state.logged = True
             st.session_state.user = user
             st.session_state.rol = USERS[user]["rol"]
             st.success(f"Bienvenido, {user}")
-            st.experimental_rerun()
         else:
             st.error("Usuario o contraseña incorrectos")
     st.stop()
 
 # ---------------------------------------------------
-# MENÚ PRINCIPAL (sin emojis, estilo profesional)
+# MENÚ PRINCIPAL
 # ---------------------------------------------------
 st.sidebar.title("Navegación")
 menu_opciones = ["Nueva solicitud", "Seguimiento", "Dashboard"]
 opcion = st.sidebar.radio("Selecciona opción", menu_opciones)
-st.sidebar.markdown(f"Usuario: **{st.session_state.user}**  \nRol: **{st.session_state.rol}**")
+st.sidebar.markdown(f"**Usuario:** {st.session_state.user}  \n**Rol:** {st.session_state.rol}")
 
 df_materiales, df_historial = cargar_datos()
 
 # ---------------------------------------------------
-# 1) NUEVA SOLICITUD
+# 1) NUEVA SOLICITUD - MEJORADA CON 2 MODOS
 # ---------------------------------------------------
 if opcion == "Nueva solicitud":
     st.title("Nueva solicitud de refacciones")
@@ -255,69 +211,98 @@ if opcion == "Nueva solicitud":
         with col3:
             prioridad = st.selectbox("Prioridad", ["Alta", "Media", "Baja"])
 
-        comentario_solicitud = st.text_area("Comentario general de la solicitud")
+        comentario_solicitud = st.text_area("Comentario general de la solicitud", height=80)
 
         st.markdown("---")
-        st.subheader("Captura de materiales (Critical Evaluation)")
+        st.subheader("Captura de materiales")
 
-        st.info("Elige la forma de captura de materiales: manual o carga masiva desde plantilla Excel.")
-
-        opcion_captura = st.radio(
-            "Modo de captura",
-            ["Captura manual", "Carga masiva (Excel plantilla)"],
-            horizontal=True
+        # NUEVA LÓGICA: Cantidad de piezas
+        cantidad = st.number_input(
+            "¿Cuántas piezas quieres registrar?", 
+            min_value=1, 
+            max_value=50, 
+            value=1, 
+            step=1,
+            help="Para 5 o menos: formulario simple. Para más: plantilla Excel."
         )
 
-        materiales_nuevos = None
+        materiales_nuevos = []
         archivo_masivo = None
 
-        columnas_material = [
-            "Item", "Descripcion", "Estacion", "Frecuencia_Cambio",
-            "Cant_Stock_Requerida", "Cant_Equipos", "Cant_Partes_Equipo",
-            "RP_Sugerido", "Manufacturer"
-        ]
+        if cantidad <= 5:
+            st.info(f"**Modo formulario** - Captura fácil para {cantidad} pieza(s)")
+            for i in range(cantidad):
+                st.markdown(f"---")
+                st.subheader(f"Pieza {i+1}")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    item = st.text_input(f"Item / Número de parte", key=f"item_{i}")
+                    descripcion = st.text_input(f"Descripción", key=f"desc_{i}")
+                    estacion = st.text_input(f"Estación", key=f"estacion_{i}")
+                    frecuencia = st.text_input(f"Frecuencia de cambio / Tiempo de vida", key=f"frec_{i}")
+                
+                with col2:
+                    cant_stock = st.number_input(f"Cantidad en stock requerida", min_value=0.0, value=0.0, step=1.0, key=f"stock_{i}")
+                    cant_equipos = st.number_input(f"Número de equipos que usan esta pieza", min_value=0, value=0, step=1, key=f"equipos_{i}")
+                    cant_partes = st.number_input(f"Partes por equipo", min_value=0, value=0, step=1, key=f"partes_{i}")
+                    rp = st.text_input(f"RP sugerido", key=f"rp_{i}")
+                    manufacturer = st.text_input(f"Manufacturer / Proveedor", key=f"mfg_{i}")
 
-        if opcion_captura == "Captura manual":
-            df_tmp = pd.DataFrame(columns=columnas_material)
-            df_edit = st.data_editor(
-                df_tmp,
-                num_rows="dynamic",
-                use_container_width=True,
-                key="editor_materiales"
-            )
-            materiales_nuevos = df_edit
+                materiales_nuevos.append({
+                    "Item": item,
+                    "Descripcion": descripcion,
+                    "Estacion": estacion,
+                    "Frecuencia_Cambio": frecuencia,
+                    "Cant_Stock_Requerida": cant_stock,
+                    "Cant_Equipos": cant_equipos,
+                    "Cant_Partes_Equipo": cant_partes,
+                    "RP_Sugerido": rp,
+                    "Manufacturer": manufacturer
+                })
 
         else:
-            st.markdown("Descarga la plantilla, llénala con los materiales y súbela nuevamente.")
-            plantilla_df = pd.DataFrame(columns=columnas_material)
+            st.info(f"**Modo carga masiva** - {cantidad} piezas se capturan con plantilla Excel")
+            st.markdown("Descarga la plantilla, llénala con las piezas y súbela:")
+            
+            columnas_plantilla = ["Item", "Descripcion", "Estacion", "Frecuencia_Cambio", 
+                                "Cant_Stock_Requerida", "Cant_Equipos", "Cant_Partes_Equipo", 
+                                "RP_Sugerido", "Manufacturer"]
+            plantilla_df = pd.DataFrame(columns=columnas_plantilla)
             plantilla_bytes = df_to_excel_bytes(plantilla_df)
-            st.download_button(
-                label="Descargar plantilla Excel",
-                data=plantilla_bytes,
-                file_name="plantilla_critical_evaluation.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            
+            col1, col2 = st.columns([1,3])
+            with col1:
+                st.download_button(
+                    label="📥 Plantilla",
+                    data=plantilla_bytes,
+                    file_name="plantilla_critical_evaluation.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
+            with col2:
+                archivo_masivo = st.file_uploader(
+                    "Sube la plantilla completada",
+                    type=["xlsx"],
+                    key="uploader_masivo"
+                )
 
-            archivo_masivo = st.file_uploader(
-                "Subir plantilla llenada",
-                type=["xlsx"],
-                key="uploader_masivo"
-            )
+        enviado = st.form_submit_button("Guardar solicitud", type="primary")
 
-        enviado = st.form_submit_button("Guardar solicitud")
-
+    # PROCESAR GUARDADO
     if enviado:
         id_solicitud = generar_id_solicitud()
         fecha_solicitud = datetime.now()
+        registros = []
 
-        if opcion_captura == "Captura manual":
-            if materiales_nuevos is None or materiales_nuevos.empty:
-                st.error("Debes capturar al menos un material.")
+        if cantidad <= 5:
+            # Modo formulario
+            if not materiales_nuevos:
+                st.error("Debes completar al menos una descripción.")
             else:
-                registros = []
-                for _, row in materiales_nuevos.iterrows():
-                    if pd.isna(row.get("Descripcion")) or str(row.get("Descripcion")).strip() == "":
+                for material in materiales_nuevos:
+                    if pd.isna(material.get("Descripcion")) or str(material.get("Descripcion", "")).strip() == "":
                         continue
+                    
                     id_material = generar_id_material()
                     registros.append({
                         "ID_Material": id_material,
@@ -327,17 +312,15 @@ if opcion == "Nueva solicitud":
                         "Linea": linea,
                         "Prioridad": prioridad,
                         "Comentario_Solicitud": comentario_solicitud,
-
-                        "Item": row.get("Item", ""),
-                        "Descripcion": row.get("Descripcion", ""),
-                        "Estacion": row.get("Estacion", ""),
-                        "Frecuencia_Cambio": row.get("Frecuencia_Cambio", ""),
-                        "Cant_Stock_Requerida": row.get("Cant_Stock_Requerida", 0),
-                        "Cant_Equipos": row.get("Cant_Equipos", 0),
-                        "Cant_Partes_Equipo": row.get("Cant_Partes_Equipo", 0),
-                        "RP_Sugerido": row.get("RP_Sugerido", ""),
-                        "Manufacturer": row.get("Manufacturer", ""),
-
+                        "Item": material.get("Item", ""),
+                        "Descripcion": material.get("Descripcion", ""),
+                        "Estacion": material.get("Estacion", ""),
+                        "Frecuencia_Cambio": material.get("Frecuencia_Cambio", ""),
+                        "Cant_Stock_Requerida": material.get("Cant_Stock_Requerida", 0),
+                        "Cant_Equipos": material.get("Cant_Equipos", 0),
+                        "Cant_Partes_Equipo": material.get("Cant_Partes_Equipo", 0),
+                        "RP_Sugerido": material.get("RP_Sugerido", ""),
+                        "Manufacturer": material.get("Manufacturer", ""),
                         "Estatus": "En revisión de ingeniería",
                         "Practicante_Asignado": "",
                         "Fecha_Revision": fecha_solicitud,
@@ -350,64 +333,59 @@ if opcion == "Nueva solicitud":
                         "InfoRecord_SAP": ""
                     })
 
-                if not registros:
-                    st.error("No se generó ningún material válido (revisa que las descripciones no estén vacías).")
-                else:
-                    df_nuevos = pd.DataFrame(registros)
-                    df_materiales = pd.concat([df_materiales, df_nuevos], ignore_index=True)
-                    guardar_datos(df_materiales, df_historial)
-                    st.success(f"Solicitud {id_solicitud} guardada con {len(df_nuevos)} materiales.")
-
         else:
+            # Modo masivo
             if archivo_masivo is None:
-                st.error("Debes subir la plantilla llena con los materiales.")
+                st.error("Debes subir la plantilla Excel completada.")
             else:
-                df_masivo = pd.read_excel(archivo_masivo)
-                if df_masivo.empty:
-                    st.error("La plantilla no tiene materiales.")
-                else:
-                    registros = []
-                    for _, row in df_masivo.iterrows():
-                        if pd.isna(row.get("Descripcion")) or str(row.get("Descripcion")).strip() == "":
-                            continue
-                        id_material = generar_id_material()
-                        registros.append({
-                            "ID_Material": id_material,
-                            "ID_Solicitud": id_solicitud,
-                            "Fecha_Solicitud": fecha_solicitud,
-                            "Ingeniero": ingeniero,
-                            "Linea": linea,
-                            "Prioridad": prioridad,
-                            "Comentario_Solicitud": comentario_solicitud,
-
-                            "Item": row.get("Item", ""),
-                            "Descripcion": row.get("Descripcion", ""),
-                            "Estacion": row.get("Estacion", ""),
-                            "Frecuencia_Cambio": row.get("Frecuencia_Cambio", ""),
-                            "Cant_Stock_Requerida": row.get("Cant_Stock_Requerida", 0),
-                            "Cant_Equipos": row.get("Cant_Equipos", 0),
-                            "Cant_Partes_Equipo": row.get("Cant_Partes_Equipo", 0),
-                            "RP_Sugerido": row.get("RP_Sugerido", ""),
-                            "Manufacturer": row.get("Manufacturer", ""),
-
-                            "Estatus": "En revisión de ingeniería",
-                            "Practicante_Asignado": "",
-                            "Fecha_Revision": fecha_solicitud,
-                            "Fecha_Cotizacion": pd.NaT,
-                            "Fecha_Alta_SAP": pd.NaT,
-                            "Fecha_InfoRecord": pd.NaT,
-                            "Fecha_Finalizada": pd.NaT,
-                            "Comentario_Estatus": "",
-                            "Material_SAP": "",
-                            "InfoRecord_SAP": ""
-                        })
-                    if not registros:
-                        st.error("No se generó ningún material válido (revisa que las descripciones no estén vacías).")
+                try:
+                    df_masivo = pd.read_excel(archivo_masivo)
+                    if df_masivo.empty:
+                        st.error("La plantilla no contiene datos.")
                     else:
-                        df_nuevos = pd.DataFrame(registros)
-                        df_materiales = pd.concat([df_materiales, df_nuevos], ignore_index=True)
-                        guardar_datos(df_materiales, df_historial)
-                        st.success(f"Solicitud {id_solicitud} guardada con {len(df_nuevos)} materiales.")
+                        for _, row in df_masivo.iterrows():
+                            if pd.isna(row.get("Descripcion")) or str(row.get("Descripcion", "")).strip() == "":
+                                continue
+                            
+                            id_material = generar_id_material()
+                            registros.append({
+                                "ID_Material": id_material,
+                                "ID_Solicitud": id_solicitud,
+                                "Fecha_Solicitud": fecha_solicitud,
+                                "Ingeniero": ingeniero,
+                                "Linea": linea,
+                                "Prioridad": prioridad,
+                                "Comentario_Solicitud": comentario_solicitud,
+                                "Item": row.get("Item", ""),
+                                "Descripcion": row.get("Descripcion", ""),
+                                "Estacion": row.get("Estacion", ""),
+                                "Frecuencia_Cambio": row.get("Frecuencia_Cambio", ""),
+                                "Cant_Stock_Requerida": row.get("Cant_Stock_Requerida", 0),
+                                "Cant_Equipos": row.get("Cant_Equipos", 0),
+                                "Cant_Partes_Equipo": row.get("Cant_Partes_Equipo", 0),
+                                "RP_Sugerido": row.get("RP_Sugerido", ""),
+                                "Manufacturer": row.get("Manufacturer", ""),
+                                "Estatus": "En revisión de ingeniería",
+                                "Practicante_Asignado": "",
+                                "Fecha_Revision": fecha_solicitud,
+                                "Fecha_Cotizacion": pd.NaT,
+                                "Fecha_Alta_SAP": pd.NaT,
+                                "Fecha_InfoRecord": pd.NaT,
+                                "Fecha_Finalizada": pd.NaT,
+                                "Comentario_Estatus": "",
+                                "Material_SAP": "",
+                                "InfoRecord_SAP": ""
+                            })
+                except Exception as e:
+                    st.error(f"Error al leer la plantilla: {str(e)}")
+
+        if registros:
+            df_nuevos = pd.DataFrame(registros)
+            df_materiales = pd.concat([df_materiales, df_nuevos], ignore_index=True)
+            guardar_datos(df_materiales, df_historial)
+            st.success(f"✅ Solicitud **{id_solicitud}** guardada con **{len(registros)}** materiales.")
+        else:
+            st.error("❌ No se generó ningún material válido. Verifica las descripciones.")
 
 # ---------------------------------------------------
 # 2) SEGUIMIENTO
@@ -415,19 +393,17 @@ if opcion == "Nueva solicitud":
 elif opcion == "Seguimiento":
     st.title("Seguimiento de materiales")
 
-    # Filtros
     colf1, colf2, colf3, colf4 = st.columns(4)
     with colf1:
-        filtro_linea = st.selectbox("Filtrar por línea", ["Todas"] + list(LINEAS.keys()))
+        filtro_linea = st.selectbox("Línea", ["Todas"] + list(LINEAS.keys()))
     with colf2:
-        filtro_estatus = st.selectbox("Filtrar por estatus", ["Todos"] + STATUS)
+        filtro_estatus = st.selectbox("Estatus", ["Todos"] + STATUS)
     with colf3:
-        filtro_ingeniero = st.text_input("Filtrar por ingeniero (texto)")
+        filtro_ingeniero = st.text_input("Ingeniero")
     with colf4:
-        filtro_practicante = st.text_input("Filtrar por practicante (texto)")
+        filtro_practicante = st.text_input("Practicante")
 
     df_view = df_materiales.copy()
-
     if filtro_linea != "Todas":
         df_view = df_view[df_view["Linea"] == filtro_linea]
     if filtro_estatus != "Todos":
@@ -437,40 +413,36 @@ elif opcion == "Seguimiento":
     if filtro_practicante:
         df_view = df_view[df_view["Practicante_Asignado"].str.contains(filtro_practicante, case=False, na=False)]
 
-    st.dataframe(df_view, use_container_width=True)
+    st.dataframe(df_view[["ID_Material", "ID_Solicitud", "Descripcion", "Linea", "Estatus", "Practicante_Asignado"]], 
+                 use_container_width=True)
 
     st.markdown("---")
-    st.subheader("Actualizar estatus de un material")
-
-    id_mat_sel = st.text_input("ID del material (ID_Material) a actualizar")
+    st.subheader("Actualizar estatus")
+    
+    id_mat_sel = st.text_input("ID del material a actualizar")
     if id_mat_sel:
         df_sel = df_materiales[df_materiales["ID_Material"] == id_mat_sel]
-        if df_sel.empty:
-            st.warning("No se encontró ese ID_Material.")
-        else:
+        if not df_sel.empty:
             registro = df_sel.iloc[0]
-            st.write(f"ID de solicitud: {registro['ID_Solicitud']}")
-            st.write(f"Descripción: {registro['Descripcion']}")
+            st.markdown(f"**{registro['Descripcion']}**")
+            st.markdown(f"**ID Solicitud:** {registro['ID_Solicitud']} | **Línea:** {registro['Linea']}")
+            st.markdown("**Estatus actual:** " + estatus_coloreado(registro["Estatus"]), unsafe_allow_html=True)
 
-            st.markdown(
-                "Estatus actual: " +
-                estatus_coloreado(registro["Estatus"]),
-                unsafe_allow_html=True
-            )
+            col1, col2 = st.columns(2)
+            with col1:
+                nuevo_estatus = st.selectbox("Nuevo estatus", STATUS, 
+                                           index=STATUS.index(registro["Estatus"]) if registro["Estatus"] in STATUS else 0)
+                practicante = st.text_input("Practicante", value=registro.get("Practicante_Asignado", ""))
+            with col2:
+                material_sap = st.text_input("Material SAP", value=registro.get("Material_SAP", ""))
+                inforecord_sap = st.text_input("InfoRecord SAP", value=registro.get("InfoRecord_SAP", ""))
+            
+            comentario = st.text_area("Comentario del cambio", height=60)
 
-            nuevo_estatus = st.selectbox(
-                "Nuevo estatus",
-                STATUS,
-                index=STATUS.index(registro["Estatus"]) if registro["Estatus"] in STATUS else 0
-            )
-            practicante = st.text_input("Practicante asignado", value=registro.get("Practicante_Asignado", ""))
-            comentario = st.text_area("Comentario del cambio")
-            material_sap = st.text_input("Material SAP (opcional)", value=registro.get("Material_SAP", ""))
-            inforecord_sap = st.text_input("InfoRecord SAP (opcional)", value=registro.get("InfoRecord_SAP", ""))
-
-            if st.button("Guardar cambio de estatus"):
+            if st.button("Guardar cambio", type="primary"):
                 idx = df_materiales.index[df_materiales["ID_Material"] == id_mat_sel][0]
                 estatus_anterior = df_materiales.at[idx, "Estatus"]
+                
                 df_materiales.at[idx, "Estatus"] = nuevo_estatus
                 df_materiales.at[idx, "Practicante_Asignado"] = practicante
                 df_materiales.at[idx, "Comentario_Estatus"] = comentario
@@ -478,9 +450,7 @@ elif opcion == "Seguimiento":
                 df_materiales.at[idx, "InfoRecord_SAP"] = inforecord_sap
 
                 fecha_hoy = datetime.now()
-                if nuevo_estatus == "En revisión de ingeniería":
-                    df_materiales.at[idx, "Fecha_Revision"] = fecha_hoy
-                elif nuevo_estatus == "En cotización":
+                if nuevo_estatus == "En cotización":
                     df_materiales.at[idx, "Fecha_Cotizacion"] = fecha_hoy
                 elif nuevo_estatus == "En alta SAP":
                     df_materiales.at[idx, "Fecha_Alta_SAP"] = fecha_hoy
@@ -489,6 +459,7 @@ elif opcion == "Seguimiento":
                 elif nuevo_estatus == "Alta finalizada":
                     df_materiales.at[idx, "Fecha_Finalizada"] = fecha_hoy
 
+                # Guardar historial
                 nuevo_hist = {
                     "ID_Material": id_mat_sel,
                     "Fecha_Cambio": fecha_hoy,
@@ -498,9 +469,8 @@ elif opcion == "Seguimiento":
                     "Comentario": comentario
                 }
                 df_historial = pd.concat([df_historial, pd.DataFrame([nuevo_hist])], ignore_index=True)
-
                 guardar_datos(df_materiales, df_historial)
-                st.success("Estatus actualizado y cambio registrado en historial.")
+                st.success("✅ Estatus actualizado correctamente.")
 
 # ---------------------------------------------------
 # 3) DASHBOARD
@@ -509,29 +479,32 @@ elif opcion == "Dashboard":
     st.title("Dashboard de altas de materiales")
 
     if df_materiales.empty:
-        st.info("No hay datos todavía.")
+        st.info("No hay datos para mostrar.")
     else:
         df_dash = df_materiales.copy()
         df_dash["Fecha_Solicitud"] = pd.to_datetime(df_dash["Fecha_Solicitud"])
         df_dash["Semana"] = df_dash["Fecha_Solicitud"].dt.isocalendar().week
         df_dash["Anio"] = df_dash["Fecha_Solicitud"].dt.year
 
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Total materiales", len(df_materiales))
+        with col2:
+            st.metric("En proceso", len(df_materiales[df_materiales["Estatus"] != "Alta finalizada"]))
+        with col3:
+            st.metric("Finalizados", len(df_materiales[df_materiales["Estatus"] == "Alta finalizada"]))
+
         st.subheader("Materiales por estatus")
         estatus_count = df_dash["Estatus"].value_counts()
         st.bar_chart(estatus_count)
 
+        st.subheader("Materiales por línea")
+        linea_count = df_dash["Linea"].value_counts()
+        st.bar_chart(linea_count)
+
         st.subheader("Materiales creados por semana")
         sem_count = df_dash.groupby(["Anio", "Semana"]).size().reset_index(name="Cantidad")
         if not sem_count.empty:
-            st.line_chart(data=sem_count, x="Semana", y="Cantidad")
-        else:
-            st.write("No hay datos suficientes para la gráfica semanal.")
+            st.line_chart(sem_count.set_index("Semana")["Cantidad"])
 
-        st.subheader("Materiales finalizados por practicante")
-        df_finalizados = df_dash[df_dash["Estatus"] == "Alta finalizada"]
-        if not df_finalizados.empty:
-            prac_count = df_finalizados["Practicante_Asignado"].value_counts()
-            st.bar_chart(prac_count)
-        else:
-            st.write("Aún no hay materiales con 'Alta finalizada'.")
 
