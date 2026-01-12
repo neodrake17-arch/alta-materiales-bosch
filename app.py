@@ -1,186 +1,146 @@
 import streamlit as st
-import streamlit_authenticator as stauth
 import pandas as pd
 from datetime import datetime
 import os
 
-# =========================
-# CONFIGURACIÓN GENERAL
-# =========================
+# ---------------- CONFIGURACIÓN GENERAL ----------------
 st.set_page_config(
-    page_title="Alta de Materiales | Bosch",
-    page_icon="🔧",
+    page_title="Alta de Materiales Bosch",
     layout="wide"
 )
 
-# =========================
-# ESTILO BOSCH
-# =========================
+# ---------------- ESTILOS BOSCH ----------------
 st.markdown("""
 <style>
-body {
-    background-color: #f5f7f9;
-}
-h1, h2, h3 {
-    color: #005691;
-}
-.stButton > button {
+body { background-color: #ffffff; }
+h1, h2, h3 { color: #005691; }
+.sidebar .sidebar-content { background-color: #f5f5f5; }
+.stButton>button {
     background-color: #005691;
     color: white;
-    border-radius: 6px;
-    font-weight: bold;
+    border-radius: 8px;
 }
-.stButton > button:hover {
-    background-color: #003f6b;
-}
-label {
-    color: #003f6b !important;
-    font-weight: bold;
-}
-[data-testid="stSidebar"] {
-    background-color: #005691;
-}
-[data-testid="stSidebar"] * {
-    color: white;
-}
+.status-cotizacion { color: orange; font-weight: bold; }
+.status-alta { color: blue; font-weight: bold; }
+.status-info { color: purple; font-weight: bold; }
+.status-ok { color: green; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
-# =========================
-# LOGIN
-# =========================
-names = ["Ing. Juan", "Ing. Maria", "Practicante 1"]
-usernames = ["juan", "maria", "prac1"]
-passwords = ["1234", "abcd", "test123"]
+# ---------------- LOGIN SIMPLE ----------------
+USERS = {
+    "admin": "bosch123",
+    "practicante": "alta2026"
+}
 
-hashed_passwords = stauth.Hasher(passwords).generate()
+if "logged" not in st.session_state:
+    st.session_state.logged = False
 
-authenticator = stauth.Authenticate(
-    names,
-    usernames,
-    hashed_passwords,
-    "alta_materiales_bosch",
-    "cookie_bosch_key",
-    cookie_expiry_days=365
+if not st.session_state.logged:
+    st.title("🔐 Acceso – Alta de Materiales Bosch")
+
+    user = st.text_input("Usuario")
+    pwd = st.text_input("Contraseña", type="password")
+
+    if st.button("Iniciar sesión"):
+        if user in USERS and USERS[user] == pwd:
+            st.session_state.logged = True
+            st.session_state.user = user
+            st.rerun()
+        else:
+            st.error("Usuario o contraseña incorrectos")
+
+    st.stop()
+
+# ---------------- DICCIONARIO DE LÍNEAS ----------------
+LINEAS = {
+    "APA 36": {"responsable": "Lalo", "correo": "external.EduardoAbel.RamirezBecerril@mx.bosch.com"},
+    "APA 38": {"responsable": "Lalo", "correo": "external.EduardoAbel.RamirezBecerril@mx.bosch.com"},
+    "DP 02": {"responsable": "Jarol", "correo": "external.Jarol.DiazCastro@mx.bosch.com"},
+    "DP 32": {"responsable": "Jime", "correo": "external.Jimena.MontalvoSanchez@mx.bosch.com"},
+    "DP 35": {"responsable": "Jime", "correo": "external.Jimena.MontalvoSanchez@mx.bosch.com"},
+    "KGT 22": {"responsable": "Niko", "correo": "external.Nicolas.BravoVerde@mx.bosch.com"},
+    "KGT 23": {"responsable": "Niko", "correo": "external.Nicolas.BravoVerde@mx.bosch.com"},
+    "LG 01": {"responsable": "Niko", "correo": "external.Nicolas.BravoVerde@mx.bosch.com"},
+    "LG 03": {"responsable": "Niko", "correo": "external.Nicolas.BravoVerde@mx.bosch.com"},
+    "SCU 33": {"responsable": "Jarol", "correo": "external.Jarol.DiazCastro@mx.bosch.com"},
+    "SCU 34": {"responsable": "Jarol", "correo": "external.Jarol.DiazCastro@mx.bosch.com"},
+    "SCU 48": {"responsable": "Jarol", "correo": "external.Jarol.DiazCastro@mx.bosch.com"},
+    "SENSOR 28": {"responsable": "Jime", "correo": "external.Jimena.MontalvoSanchez@mx.bosch.com"},
+    "SENSOR 5": {"responsable": "Jime", "correo": "external.Jimena.MontalvoSanchez@mx.bosch.com"},
+    "SERVO 10": {"responsable": "Lalo", "correo": "external.EduardoAbel.RamirezBecerril@mx.bosch.com"},
+    "SERVO 24": {"responsable": "Lalo", "correo": "external.EduardoAbel.RamirezBecerril@mx.bosch.com"},
+    "SSL1": {"responsable": "Jarol", "correo": "external.Jarol.DiazCastro@mx.bosch.com"}
+}
+
+FILE = "materiales.xlsx"
+
+if not os.path.exists(FILE):
+    pd.DataFrame(columns=[
+        "Fecha", "Material", "Descripción", "Línea",
+        "Responsable", "Correo", "Estatus"
+    ]).to_excel(FILE, index=False)
+
+# ---------------- SIDEBAR ----------------
+st.sidebar.title("Menú")
+opcion = st.sidebar.radio(
+    "Selecciona opción",
+    ["➕ Alta de material", "📋 Seguimiento", "📊 Dashboard"]
 )
 
-name, authentication_status, username = authenticator.login(
-    "Inicio de sesión | Bosch", "main"
-)
+st.sidebar.markdown(f"👤 Usuario: **{st.session_state.user}**")
 
-# =========================
-# VALIDACIÓN LOGIN
-# =========================
-if authentication_status is False:
-    st.error("Usuario o contraseña incorrectos")
+# ---------------- ALTA DE MATERIAL ----------------
+if opcion == "➕ Alta de material":
+    st.title("➕ Alta de material")
 
-elif authentication_status is None:
-    st.warning("Ingresa tus credenciales")
+    with st.form("alta"):
+        material = st.text_input("Número de material")
+        desc = st.text_area("Descripción")
+        linea = st.selectbox("Línea", list(LINEAS.keys()))
+        estatus = st.selectbox(
+            "Estatus",
+            ["En cotización", "En alta SAP", "Info Record", "Alta confirmada"]
+        )
+        guardar = st.form_submit_button("Guardar")
 
-elif authentication_status:
+    if guardar:
+        info = LINEAS[linea]
+        df = pd.read_excel(FILE)
+        df.loc[len(df)] = [
+            datetime.now().strftime("%Y-%m-%d"),
+            material,
+            desc,
+            linea,
+            info["responsable"],
+            info["correo"],
+            estatus
+        ]
+        df.to_excel(FILE, index=False)
+        st.success("Material registrado correctamente")
 
-    authenticator.logout("Cerrar sesión", "sidebar")
-    st.sidebar.markdown(f"👤 **Usuario:** {name}")
+# ---------------- SEGUIMIENTO ----------------
+elif opcion == "📋 Seguimiento":
+    st.title("📋 Seguimiento de materiales")
+    df = pd.read_excel(FILE)
+    st.dataframe(df, use_container_width=True)
 
-    # =========================
-    # LINEAS → RESPONSABLE
-    # =========================
-    LINEAS = {
-        "APA 36": {"responsable": "Lalo", "correo": "lalo@bosch.com"},
-        "APA 38": {"responsable": "Lalo", "correo": "lalo@bosch.com"},
-        "DP 02": {"responsable": "Jarol", "correo": "jarol@bosch.com"},
-        "DP 32": {"responsable": "Jime", "correo": "jime@bosch.com"},
-        "SCU 48": {"responsable": "Jarol", "correo": "jarol@bosch.com"},
-        "SSL1": {"responsable": "Jarol", "correo": "jarol@bosch.com"}
-    }
-
-    ARCHIVO_EXCEL = "alta_materiales.xlsx"
-
-    # =========================
-    # SIDEBAR MENU
-    # =========================
-    menu = st.sidebar.radio(
-        "Menú",
-        ["📝 Alta de material", "📊 Estatus de materiales", "📈 Dashboard"]
+    st.download_button(
+        "⬇️ Descargar Excel",
+        df.to_excel(index=False),
+        "materiales.xlsx"
     )
 
-    # =========================
-    # ALTA DE MATERIAL
-    # =========================
-    if menu == "📝 Alta de material":
-        st.title("📝 Alta de Materiales")
+# ---------------- DASHBOARD ----------------
+elif opcion == "📊 Dashboard":
+    st.title("📊 Dashboard de estatus")
 
-        with st.form("form_alta"):
-            col1, col2 = st.columns(2)
+    df = pd.read_excel(FILE)
 
-            with col1:
-                linea = st.selectbox("Línea", list(LINEAS.keys()))
-                estacion = st.text_input("Estación")
-                descripcion = st.text_area("Descripción del material")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Total materiales", len(df))
+    with col2:
+        st.metric("Altas confirmadas", len(df[df["Estatus"] == "Alta confirmada"]))
 
-            with col2:
-                proveedor = st.text_input("Proveedor sugerido")
-                cantidad = st.number_input("Cantidad", min_value=1)
-                prioridad = st.selectbox("Prioridad", ["Normal", "Crítica"])
-
-            enviar = st.form_submit_button("Registrar material")
-
-        if enviar:
-            responsable = LINEAS[linea]["responsable"]
-            correo = LINEAS[linea]["correo"]
-
-            nuevo = {
-                "Fecha": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "Registrado por": name,
-                "Línea": linea,
-                "Estación": estacion,
-                "Descripción": descripcion,
-                "Proveedor": proveedor,
-                "Cantidad": cantidad,
-                "Prioridad": prioridad,
-                "Responsable": responsable,
-                "Correo": correo,
-                "Estatus": "🟡 En cotización"
-            }
-
-            df_nuevo = pd.DataFrame([nuevo])
-
-            if os.path.exists(ARCHIVO_EXCEL):
-                df = pd.read_excel(ARCHIVO_EXCEL)
-                df = pd.concat([df, df_nuevo], ignore_index=True)
-            else:
-                df = df_nuevo
-
-            df.to_excel(ARCHIVO_EXCEL, index=False)
-
-            st.success("✅ Material registrado correctamente")
-            st.info(f"Responsable asignado: {responsable}")
-
-    # =========================
-    # ESTATUS
-    # =========================
-    elif menu == "📊 Estatus de materiales":
-        st.title("📊 Estatus de Materiales")
-
-        if os.path.exists(ARCHIVO_EXCEL):
-            df = pd.read_excel(ARCHIVO_EXCEL)
-            st.dataframe(df, use_container_width=True)
-        else:
-            st.warning("Aún no hay materiales registrados")
-
-    # =========================
-    # DASHBOARD
-    # =========================
-    elif menu == "📈 Dashboard":
-        st.title("📈 Dashboard")
-
-        if os.path.exists(ARCHIVO_EXCEL):
-            df = pd.read_excel(ARCHIVO_EXCEL)
-            conteo = df["Estatus"].value_counts()
-            st.bar_chart(conteo)
-        else:
-            st.warning("No hay datos para mostrar")
-
-
-
-
+    st.bar_chart(df["Estatus"].value_counts())
