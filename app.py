@@ -124,6 +124,11 @@ def contar_pendientes(usuario, df_materiales):
                                 (df_materiales["Estatus"] != "Alta finalizada")])
     return 0
 
+def safe_columns(df, columnas_deseadas):
+    """Selecciona solo las columnas que existen en el DataFrame"""
+    columnas_existentes = [col for col in columnas_deseadas if col in df.columns]
+    return df[columnas_existentes].copy()
+
 # INICIALIZAR BASE DE DATOS CON CATEGORÍA
 if not os.path.exists(DB_FILE):
     with pd.ExcelWriter(DB_FILE, engine="openpyxl") as writer:
@@ -415,7 +420,7 @@ elif opcion == "Mis pendientes":
         st.markdown("---")
         st.markdown("<h3 style='color: #1976d2;'>📊 Materiales Pendientes - VISTA COMPLETA</h3>", unsafe_allow_html=True)
         
-        # ✅ TABLA CON TODA LA INFORMACIÓN
+        # ✅ TABLA CON COLUMAS SEGUROS
         columnas_completas = [
             "ID_Material", "ID_Solicitud", "Ingeniero", "Linea", "Categoria",
             "Descripcion", "Item", "Estacion", "Cant_Stock_Requerida", 
@@ -423,8 +428,9 @@ elif opcion == "Mis pendientes":
             "Manufacturer", "Estatus", "Prioridad", "Practicante_Asignado"
         ]
         
-        df_mostrar_completo = df_mis[columnas_completas].copy()
-        df_mostrar_completo["Estatus"] = df_mostrar_completo["Estatus"].apply(estatus_coloreado)
+        df_mostrar_completo = safe_columns(df_mis, columnas_completas)
+        if "Estatus" in df_mostrar_completo.columns:
+            df_mostrar_completo["Estatus"] = df_mostrar_completo["Estatus"].apply(estatus_coloreado)
         st.markdown(df_mostrar_completo.to_html(escape=False, index=False), unsafe_allow_html=True)
         
         # FILTROS ADICIONALES
@@ -439,8 +445,9 @@ elif opcion == "Mis pendientes":
             if filtro_categoria != "Todas": df_filtrado = df_filtrado[df_filtrado["Categoria"] == filtro_categoria]
             if filtro_estatus != "Todos": df_filtrado = df_filtrado[df_filtrado["Estatus"] == filtro_estatus]
             
-            df_mostrar_f = df_filtrado[columnas_completas].copy()
-            df_mostrar_f["Estatus"] = df_mostrar_f["Estatus"].apply(estatus_coloreado)
+            df_mostrar_f = safe_columns(df_filtrado, columnas_completas)
+            if "Estatus" in df_mostrar_f.columns:
+                df_mostrar_f["Estatus"] = df_mostrar_f["Estatus"].apply(estatus_coloreado)
             st.markdown(df_mostrar_f.to_html(escape=False, index=False), unsafe_allow_html=True)
         
         # ACTUALIZAR MATERIAL INDIVIDUAL
@@ -457,15 +464,15 @@ elif opcion == "Mis pendientes":
             
             col_info1, col_info2 = st.columns([1, 1])
             with col_info1:
-                st.markdown(f"**👨‍🔧 Ingeniero:** {reg['Ingeniero']}")
-                st.markdown(f"**🏭 Línea:** {reg['Linea']}")
+                st.markdown(f"**👨‍🔧 Ingeniero:** {reg.get('Ingeniero', 'N/A')}")
+                st.markdown(f"**🏭 Línea:** {reg.get('Linea', 'N/A')}")
                 st.markdown(f"**🏷️ Categoría:** **{reg.get('Categoria', 'N/A')}**")
-                st.markdown(f"**🔥 Prioridad:** {reg['Prioridad']}")
+                st.markdown(f"**🔥 Prioridad:** {reg.get('Prioridad', 'N/A')}")
                 st.markdown(f"**📝 Comentario solicitud:** {reg.get('Comentario_Solicitud', 'N/A')}")
             
             with col_info2:
                 st.markdown(f"**📦 Item:** {reg.get('Item', 'N/A')}")
-                st.markdown(f"**📄 Descripción:** **{reg['Descripcion']}**")
+                st.markdown(f"**📄 Descripción:** **{reg.get('Descripcion', 'N/A')}**")
                 st.markdown(f"**🏢 Estación:** {reg.get('Estacion', 'N/A')}")
             
             col_detalle1, col_detalle2 = st.columns([1, 1])
@@ -477,11 +484,11 @@ elif opcion == "Mis pendientes":
             with col_detalle2:
                 st.markdown(f"**💡 RP sugerido:** {reg.get('RP_Sugerido', 'N/A')}")
                 st.markdown(f"**🏭 Fabricante:** {reg.get('Manufacturer', 'N/A')}")
-                st.markdown(f"**📋 Estatus actual:** {estatus_coloreado(reg['Estatus'])}", unsafe_allow_html=True)
+                st.markdown(f"**📋 Estatus actual:** {estatus_coloreado(reg.get('Estatus', ''))}", unsafe_allow_html=True)
             
             col_est1, col_est2 = st.columns(2)
             nuevo_estatus = col_est1.selectbox("➡️ Nuevo estatus:", STATUS, 
-                                             index=STATUS.index(reg["Estatus"]))
+                                             index=STATUS.index(reg.get("Estatus", STATUS[0])) if reg.get("Estatus") in STATUS else 0)
             practicante = col_est2.text_input("👤 Asignado a:", value=st.session_state.responsable)
             
             col_sap1, col_sap2 = st.columns(2)
@@ -581,8 +588,10 @@ elif opcion in ["Seguimiento", "Seguimiento completo"]:
     if filtro_estatus != "Todos": df_view = df_view[df_view["Estatus"] == filtro_estatus]
     if filtro_pract: df_view = df_view[df_view["Practicante_Asignado"].str.contains(filtro_pract, case=False, na=False)]
     
-    df_view_mostrar = df_view[["ID_Material", "Descripcion", "Linea", "Categoria", "Estatus", "Practicante_Asignado", "Prioridad"]].copy()
-    df_view_mostrar["Estatus"] = df_view_mostrar["Estatus"].apply(estatus_coloreado)
+    columnas_view = ["ID_Material", "Descripcion", "Linea", "Categoria", "Estatus", "Practicante_Asignado", "Prioridad"]
+    df_view_mostrar = safe_columns(df_view, columnas_view)
+    if "Estatus" in df_view_mostrar.columns:
+        df_view_mostrar["Estatus"] = df_view_mostrar["Estatus"].apply(estatus_coloreado)
     st.markdown(df_view_mostrar.to_html(escape=False, index=False), unsafe_allow_html=True)
 
 # ========================================
@@ -595,7 +604,9 @@ elif opcion == "Mis solicitudes":
     if df_mis.empty:
         st.info("No has creado solicitudes aún. Usa 'Nueva solicitud' para empezar.")
     else:
-        st.dataframe(df_mis[["ID_Solicitud", "Fecha_Solicitud", "Linea", "Categoria", "Prioridad", "Estatus"]], use_container_width=True)
+        columnas_mis = ["ID_Solicitud", "Fecha_Solicitud", "Linea", "Categoria", "Prioridad", "Estatus"]
+        df_mostrar_mis = safe_columns(df_mis, columnas_mis)
+        st.dataframe(df_mostrar_mis, use_container_width=True)
 
 # FOOTER
 st.markdown("---")
@@ -605,4 +616,5 @@ st.markdown("""
     Base de datos: <code>bd_materiales.xlsx</code>
 </div>
 """, unsafe_allow_html=True)
+
 
