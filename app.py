@@ -8,7 +8,7 @@ from PIL import Image
 import plotly.express as px
 import plotly.graph_objects as go
 
-# Configuración
+# Configuración - MUST BE FIRST
 st.set_page_config(page_title="Alta de Materiales Bosch", layout="wide")
 
 st.markdown("""
@@ -50,7 +50,7 @@ h1 { font-size: 2.5em; margin-bottom: 1rem; }
     margin: 2px;
     font-weight: 500;
 }
-.file-link:hover { background: linear-gradient(45deg, #1565c0, #2196f3) !important; }
+.file-link:hover { background: linear-gradient(45deg, #1565c0, #2196f5) !important; }
 .file-zone { border: 2px dashed #005691; border-radius: 10px; padding: 20px; text-align: center; background: #f8f9fa; }
 @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
 .status-select { width: 180px !important; }
@@ -84,6 +84,16 @@ CATEGORIAS_MATERIAL = ["MAZE", "FHMI", "HIBE"]
 LINEAS = list(set(sum(LINEAS_POR_PRACTICANTE.values(), [])))
 STATUS = ["En revisión de ingeniería", "En cotización", "En alta SAP", 
           "En espera de InfoRecord", "Info record creado", "Alta finalizada"]
+
+# Mapa de fechas por estatus
+FECHA_MAP = {
+    "En revisión de ingeniería": "Fecha_Revision",
+    "En cotización": "Fecha_Cotizacion", 
+    "En alta SAP": "Fecha_Alta_SAP",
+    "En espera de InfoRecord": "Fecha_InfoRecord",
+    "Info record creado": "Fecha_InfoRecord",
+    "Alta finalizada": "Fecha_Finalizada"
+}
 
 # ========================================
 # FUNCIONES AUXILIARES (COMPLETAS)
@@ -456,6 +466,8 @@ if opcion == "Nueva solicitud":
                     st.balloons()
                     st.rerun()
 
+    with tab2:
+        st.info("📊 Funcionalidad Excel masivo próximamente disponible")
 
 
 
