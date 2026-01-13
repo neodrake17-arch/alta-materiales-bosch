@@ -57,6 +57,8 @@ LINEAS_POR_PRACTICANTE = {
     "Niko": ["KGT 22", "KGT 23", "LG 01", "LG 03"]
 }
 
+CATEGORIAS_MATERIAL = ["MAZE", "FHMI", "HIBE"]
+
 LINEAS = list(set(sum(LINEAS_POR_PRACTICANTE.values(), [])))
 STATUS = ["En revisión de ingeniería", "En cotización", "En alta SAP", 
           "En espera de InfoRecord", "Info record creado", "Alta finalizada"]
@@ -122,16 +124,17 @@ def contar_pendientes(usuario, df_materiales):
                                 (df_materiales["Estatus"] != "Alta finalizada")])
     return 0
 
-# INICIALIZAR BASE DE DATOS
+# INICIALIZAR BASE DE DATOS CON CATEGORÍA
 if not os.path.exists(DB_FILE):
     with pd.ExcelWriter(DB_FILE, engine="openpyxl") as writer:
         pd.DataFrame(columns=[
             "ID_Material", "ID_Solicitud", "Fecha_Solicitud", "Ingeniero", "Linea",
             "Prioridad", "Comentario_Solicitud", "Item", "Descripcion", "Estacion",
-            "Frecuencia_Cambio", "Cant_Stock_Requerida", "Cant_Equipos", "Cant_Partes_Equipo",
-            "RP_Sugerido", "Manufacturer", "Estatus", "Practicante_Asignado",
-            "Fecha_Revision", "Fecha_Cotizacion", "Fecha_Alta_SAP", "Fecha_InfoRecord",
-            "Fecha_Finalizada", "Comentario_Estatus", "Material_SAP", "InfoRecord_SAP"
+            "Categoria", "Frecuencia_Cambio", "Cant_Stock_Requerida", "Cant_Equipos", 
+            "Cant_Partes_Equipo", "RP_Sugerido", "Manufacturer", "Estatus", 
+            "Practicante_Asignado", "Fecha_Revision", "Fecha_Cotizacion", 
+            "Fecha_Alta_SAP", "Fecha_InfoRecord", "Fecha_Finalizada", 
+            "Comentario_Estatus", "Material_SAP", "InfoRecord_SAP"
         ]).to_excel(writer, sheet_name="materiales", index=False)
 
 # ========================================
@@ -231,7 +234,7 @@ with st.sidebar:
         opcion = st.radio("Navegar:", ["Nueva solicitud", "Mis solicitudes"])
 
 # ========================================
-# NUEVA SOLICITUD
+# NUEVA SOLICITUD - CON CATEGORÍA
 # ========================================
 if opcion == "Nueva solicitud":
     st.markdown("<h2 style='color: #005691;'>📋 Nueva Solicitud de Materiales</h2>", unsafe_allow_html=True)
@@ -260,6 +263,7 @@ if opcion == "Nueva solicitud":
                     item = st.text_input(f"Item/Nº parte", key=f"item_{i}")
                     descripcion = st.text_input(f"**Descripción** *(obligatorio)*", key=f"desc_{i}")
                     estacion = st.text_input(f"Estación/Máquina", key=f"est_{i}")
+                    categoria = st.selectbox(f"🏷️ Categoría", CATEGORIAS_MATERIAL, key=f"cat_{i}")
                 
                 with col_b:
                     stock = st.number_input("Stock mínimo requerido", min_value=0.0, format="%.1f", key=f"stock_{i}")
@@ -270,8 +274,9 @@ if opcion == "Nueva solicitud":
                 
                 materiales.append({
                     "Item": item, "Descripcion": descripcion, "Estacion": estacion,
-                    "Cant_Stock_Requerida": stock, "Cant_Equipos": equipos,
-                    "Cant_Partes_Equipo": partes_eq, "RP_Sugerido": rp, "Manufacturer": fabricante
+                    "Categoria": categoria, "Cant_Stock_Requerida": stock, 
+                    "Cant_Equipos": equipos, "Cant_Partes_Equipo": partes_eq, 
+                    "RP_Sugerido": rp, "Manufacturer": fabricante
                 })
             
             comentario_general = st.text_area("📝 Comentario general de la solicitud", height=80)
@@ -319,7 +324,7 @@ if opcion == "Nueva solicitud":
                 st.metric("Materiales a crear", len([m for m in materiales if m["Descripcion"].strip()]))
     
     with tab2:
-        columnas = ["Item", "Descripcion", "Estacion", "Frecuencia_Cambio", 
+        columnas = ["Item", "Descripcion", "Estacion", "Categoria", "Frecuencia_Cambio", 
                    "Cant_Stock_Requerida", "Cant_Equipos", "Cant_Partes_Equipo", 
                    "RP_Sugerido", "Manufacturer"]
         plantilla_df = pd.DataFrame(columns=columnas)
@@ -353,6 +358,7 @@ if opcion == "Nueva solicitud":
                                     "Item": row.get("Item", ""),
                                     "Descripcion": row.get("Descripcion", ""),
                                     "Estacion": row.get("Estacion", ""),
+                                    "Categoria": row.get("Categoria", ""),
                                     "Frecuencia_Cambio": row.get("Frecuencia_Cambio", ""),
                                     "Cant_Stock_Requerida": row.get("Cant_Stock_Requerida", 0),
                                     "Cant_Equipos": row.get("Cant_Equipos", 0),
@@ -383,7 +389,7 @@ if opcion == "Nueva solicitud":
                         st.error(f"❌ Error procesando Excel: {str(e)}")
 
 # ========================================
-# MIS PENDIENTES - PRACTICANTES (MEJORADO)
+# MIS PENDIENTES - TABLA COMPLETA ✅
 # ========================================
 elif opcion == "Mis pendientes":
     st.markdown(f"<h2 style='color: #005691;'>📋 Mis Pendientes - {st.session_state.responsable}</h2>", unsafe_allow_html=True)
@@ -398,7 +404,7 @@ elif opcion == "Mis pendientes":
         st.markdown("## 🎉 ¡Felicidades!")
         st.success("**No tienes materiales pendientes.** ✅")
     else:
-        # MÉTRICAS MEJORADAS (5 columnas)
+        # MÉTRICAS MEJORADAS
         col1, col2, col3, col4, col5 = st.columns(5)
         col1.metric("📋 Total pendientes", len(df_mis))
         col2.metric("🗂️ En revisión", len(df_mis[df_mis["Estatus"] == "En revisión de ingeniería"]))
@@ -407,14 +413,39 @@ elif opcion == "Mis pendientes":
         col5.metric("⏳ Espera InfoRecord", len(df_mis[df_mis["Estatus"] == "En espera de InfoRecord"]))
         
         st.markdown("---")
-        st.markdown("<h3 style='color: #1976d2;'>📊 Materiales Pendientes</h3>", unsafe_allow_html=True)
-        df_mostrar = df_mis[["ID_Material", "ID_Solicitud", "Descripcion", "Linea", "Estatus", "Prioridad"]].copy()
-        df_mostrar["Estatus"] = df_mostrar["Estatus"].apply(estatus_coloreado)
-        st.markdown(df_mostrar.to_html(escape=False, index=False), unsafe_allow_html=True)
+        st.markdown("<h3 style='color: #1976d2;'>📊 Materiales Pendientes - VISTA COMPLETA</h3>", unsafe_allow_html=True)
         
-        # ACTUALIZAR MATERIAL INDIVIDUAL - MOSTRAR TODO
+        # ✅ TABLA CON TODA LA INFORMACIÓN
+        columnas_completas = [
+            "ID_Material", "ID_Solicitud", "Ingeniero", "Linea", "Categoria",
+            "Descripcion", "Item", "Estacion", "Cant_Stock_Requerida", 
+            "Cant_Equipos", "Cant_Partes_Equipo", "RP_Sugerido", 
+            "Manufacturer", "Estatus", "Prioridad", "Practicante_Asignado"
+        ]
+        
+        df_mostrar_completo = df_mis[columnas_completas].copy()
+        df_mostrar_completo["Estatus"] = df_mostrar_completo["Estatus"].apply(estatus_coloreado)
+        st.markdown(df_mostrar_completo.to_html(escape=False, index=False), unsafe_allow_html=True)
+        
+        # FILTROS ADICIONALES
+        col_filt1, col_filt2, col_filt3 = st.columns(3)
+        filtro_linea = col_filt1.selectbox("Filtrar línea:", ["Todas"] + mis_lineas)
+        filtro_categoria = col_filt2.selectbox("Filtrar categoría:", ["Todas"] + CATEGORIAS_MATERIAL)
+        filtro_estatus = col_filt3.selectbox("Filtrar estatus:", ["Todos"] + STATUS)
+        
+        if filtro_linea != "Todas" or filtro_categoria != "Todas" or filtro_estatus != "Todos":
+            df_filtrado = df_mis.copy()
+            if filtro_linea != "Todas": df_filtrado = df_filtrado[df_filtrado["Linea"] == filtro_linea]
+            if filtro_categoria != "Todas": df_filtrado = df_filtrado[df_filtrado["Categoria"] == filtro_categoria]
+            if filtro_estatus != "Todos": df_filtrado = df_filtrado[df_filtrado["Estatus"] == filtro_estatus]
+            
+            df_mostrar_f = df_filtrado[columnas_completas].copy()
+            df_mostrar_f["Estatus"] = df_mostrar_f["Estatus"].apply(estatus_coloreado)
+            st.markdown(df_mostrar_f.to_html(escape=False, index=False), unsafe_allow_html=True)
+        
+        # ACTUALIZAR MATERIAL INDIVIDUAL
         st.markdown("---")
-        st.markdown("<h3 style='color: #666;'>🔄 Actualizar Material</h3>", unsafe_allow_html=True)
+        st.markdown("<h3 style='color: #666;'>🔄 Actualizar Material Individual</h3>", unsafe_allow_html=True)
         id_material = st.text_input("🔍 Ingresa ID_Material:")
         
         if id_material and id_material in df_mis["ID_Material"].values:
@@ -428,6 +459,7 @@ elif opcion == "Mis pendientes":
             with col_info1:
                 st.markdown(f"**👨‍🔧 Ingeniero:** {reg['Ingeniero']}")
                 st.markdown(f"**🏭 Línea:** {reg['Linea']}")
+                st.markdown(f"**🏷️ Categoría:** **{reg.get('Categoria', 'N/A')}**")
                 st.markdown(f"**🔥 Prioridad:** {reg['Prioridad']}")
                 st.markdown(f"**📝 Comentario solicitud:** {reg.get('Comentario_Solicitud', 'N/A')}")
             
@@ -475,7 +507,7 @@ elif opcion == "Mis pendientes":
                 st.rerun()
 
 # ========================================
-# DASHBOARD JEFA (MEJORADO CON GRÁFICAS)
+# DASHBOARD JEFA
 # ========================================
 elif opcion == "Dashboard":
     st.markdown("<h2 style='color: #005691;'>📈 Dashboard Ejecutivo - Practicantes</h2>", unsafe_allow_html=True)
@@ -549,7 +581,7 @@ elif opcion in ["Seguimiento", "Seguimiento completo"]:
     if filtro_estatus != "Todos": df_view = df_view[df_view["Estatus"] == filtro_estatus]
     if filtro_pract: df_view = df_view[df_view["Practicante_Asignado"].str.contains(filtro_pract, case=False, na=False)]
     
-    df_view_mostrar = df_view[["ID_Material", "Descripcion", "Linea", "Estatus", "Practicante_Asignado", "Prioridad"]].copy()
+    df_view_mostrar = df_view[["ID_Material", "Descripcion", "Linea", "Categoria", "Estatus", "Practicante_Asignado", "Prioridad"]].copy()
     df_view_mostrar["Estatus"] = df_view_mostrar["Estatus"].apply(estatus_coloreado)
     st.markdown(df_view_mostrar.to_html(escape=False, index=False), unsafe_allow_html=True)
 
@@ -563,7 +595,7 @@ elif opcion == "Mis solicitudes":
     if df_mis.empty:
         st.info("No has creado solicitudes aún. Usa 'Nueva solicitud' para empezar.")
     else:
-        st.dataframe(df_mis[["ID_Solicitud", "Fecha_Solicitud", "Linea", "Prioridad", "Estatus"]], use_container_width=True)
+        st.dataframe(df_mis[["ID_Solicitud", "Fecha_Solicitud", "Linea", "Categoria", "Prioridad", "Estatus"]], use_container_width=True)
 
 # FOOTER
 st.markdown("---")
