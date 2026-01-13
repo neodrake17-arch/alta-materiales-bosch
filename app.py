@@ -27,10 +27,12 @@ h1 { font-size: 2.5em; margin-bottom: 1rem; }
 .status-revision { color: #666666; font-weight: bold; }
 .status-cotizacion { color: #ff9800; font-weight: bold; }
 .status-alta { color: #1976d2; font-weight: bold; }
+.status-espera { color: #f57c00 !important; font-weight: bold; animation: pulse 2s infinite; }
 .status-info { color: #8e24aa; font-weight: bold; }
 .status-final { color: #388e3c; font-weight: bold; }
 .sidebar .sidebar-content { background-color: #f8f9fa !important; }
 .metric-container { background-color: #f0f8ff; padding: 1rem; border-radius: 8px; }
+@keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
 </style>
 """, unsafe_allow_html=True)
 
@@ -56,18 +58,33 @@ LINEAS_POR_PRACTICANTE = {
 }
 
 LINEAS = list(set(sum(LINEAS_POR_PRACTICANTE.values(), [])))
-STATUS = ["En revisión de ingeniería", "En cotización", "En alta SAP", "Info record creado", "Alta finalizada"]
+STATUS = ["En revisión de ingeniería", "En cotización", "En alta SAP", 
+          "En espera de InfoRecord", "Info record creado", "Alta finalizada"]
+
+FECHA_MAP = {
+    "En cotización": "Fecha_Cotizacion",
+    "En alta SAP": "Fecha_Alta_SAP",
+    "En espera de InfoRecord": "Fecha_InfoRecord", 
+    "Info record creado": "Fecha_InfoRecord",
+    "Alta finalizada": "Fecha_Finalizada"
+}
 
 # ========================================
 # FUNCIONES AUXILIARES
 # ========================================
 def cargar_datos():
     try:
+        if not os.path.exists(DB_FILE):
+            return pd.DataFrame(), pd.DataFrame()
         xls = pd.ExcelFile(DB_FILE)
         df_materiales = pd.read_excel(xls, "materiales")
         df_historial = pd.read_excel(xls, "historial") if "historial" in xls.sheet_names else pd.DataFrame()
         return df_materiales, df_historial
-    except:
+    except FileNotFoundError:
+        st.info("📄 Creando base de datos nueva...")
+        return pd.DataFrame(), pd.DataFrame()
+    except Exception as e:
+        st.error(f"❌ Error cargando datos: {str(e)}")
         return pd.DataFrame(), pd.DataFrame()
 
 def guardar_datos(df_materiales, df_historial):
@@ -86,6 +103,7 @@ def estatus_coloreado(estatus):
         "En revisión de ingeniería": "status-revision",
         "En cotización": "status-cotizacion",
         "En alta SAP": "status-alta",
+        "En espera de InfoRecord": "status-espera",
         "Info record creado": "status-info",
         "Alta finalizada": "status-final"
     }
@@ -94,7 +112,7 @@ def estatus_coloreado(estatus):
 def df_to_excel_bytes(df):
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False)
+        df.to_excel(writer, index=False, sheet_name="Reporte")
     return output.getvalue()
 
 def contar_pendientes(usuario, df_materiales):
@@ -117,7 +135,7 @@ if not os.path.exists(DB_FILE):
         ]).to_excel(writer, sheet_name="materiales", index=False)
 
 # ========================================
-# LOGIN LIMPIO (SIN USUARIOS VISIBLES)
+# LOGIN LIMPIO
 # ========================================
 if "logged" not in st.session_state:
     st.session_state.logged = False
@@ -187,7 +205,6 @@ pendientes_usuario = contar_pendientes(st.session_state.responsable, df_material
 with st.sidebar:
     st.markdown("<h3 style='color: #005691; margin-bottom: 1rem;'>📋 Menú Principal</h3>", unsafe_allow_html=True)
     
-    # ALERTA PERSONALIZADA PARA PRACTICANTES
     if st.session_state.rol == "practicante":
         st.markdown(f"""
         <div style='background: linear-gradient(90deg, #ffebee 0%, #ffcdd2 100%); 
@@ -205,7 +222,6 @@ with st.sidebar:
     st.markdown(f"🏢 **{st.session_state.responsable}**")
     st.markdown("---")
     
-    # MENÚ DINÁMICO POR ROL
     if st.session_state.rol == "practicante":
         opcion = st.radio("Navegar:", ["Mis pendientes", "Seguimiento completo", "Nueva solicitud"])
     elif st.session_state.rol == "jefa":
@@ -215,12 +231,11 @@ with st.sidebar:
         opcion = st.radio("Navegar:", ["Nueva solicitud", "Mis solicitudes"])
 
 # ========================================
-# NUEVA SOLICITUD - SLIDER DINÁMICO 1-5
+# NUEVA SOLICITUD
 # ========================================
 if opcion == "Nueva solicitud":
     st.markdown("<h2 style='color: #005691;'>📋 Nueva Solicitud de Materiales</h2>", unsafe_allow_html=True)
     
-    # DATOS GENERALES
     col1, col2, col3 = st.columns(3)
     ingeniero = col1.text_input("👨‍🔧 Ingeniero solicitante", value=st.session_state.user)
     linea = col2.selectbox("🏭 Línea de producción", LINEAS)
@@ -228,25 +243,15 @@ if opcion == "Nueva solicitud":
     
     st.markdown("---")
     
-    # TABS: Formulario vs Excel
     tab1, tab2 = st.tabs(["📝 Formulario Dinámico (1-5)", "📊 Excel Masivo (>5)"])
     
     with tab1:
         st.info("**Selecciona cuántos materiales quieres registrar**")
-        
-        # SLIDER DINÁMICO 1-5
-        num_materiales = st.slider(
-            "🔢 Número de materiales:", 
-            min_value=1, max_value=5, value=1,
-            help="Desliza para mostrar solo los formularios que necesitas"
-        )
-        
+        num_materiales = st.slider("🔢 Número de materiales:", min_value=1, max_value=5, value=1)
         st.markdown(f"**✨ Mostrando {num_materiales} formulario(s):**")
         
         with st.form(key="form_dinamico"):
             materiales = []
-            
-            # FORMULARIOS DINÁMICOS según slider
             for i in range(num_materiales):
                 st.markdown(f"### **Material {i+1}**")
                 col_a, col_b = st.columns([1.2, 1])
@@ -314,25 +319,19 @@ if opcion == "Nueva solicitud":
                 st.metric("Materiales a crear", len([m for m in materiales if m["Descripcion"].strip()]))
     
     with tab2:
-        st.info("**Para solicitudes masivas (>5 materiales)**")
         columnas = ["Item", "Descripcion", "Estacion", "Frecuencia_Cambio", 
                    "Cant_Stock_Requerida", "Cant_Equipos", "Cant_Partes_Equipo", 
                    "RP_Sugerido", "Manufacturer"]
-        
         plantilla_df = pd.DataFrame(columns=columnas)
         col1, col2 = st.columns([1, 3])
         
         with col1:
-            st.download_button(
-                label="📥 Descargar Plantilla",
-                data=df_to_excel_bytes(plantilla_df),
-                file_name="plantilla_materiales_bosch.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            st.download_button("📥 Descargar Plantilla", data=df_to_excel_bytes(plantilla_df),
+                             file_name="plantilla_materiales_bosch.xlsx", 
+                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
         
         with col2:
             archivo = st.file_uploader("📤 Subir plantilla completada", type=["xlsx"])
-            
             with st.form("form_masivo"):
                 comentario_general = st.text_area("Comentario general")
                 if st.form_submit_button("💾 Guardar Masivo") and archivo is not None:
@@ -384,7 +383,7 @@ if opcion == "Nueva solicitud":
                         st.error(f"❌ Error procesando Excel: {str(e)}")
 
 # ========================================
-# MIS PENDIENTES - PRACTICANTES
+# MIS PENDIENTES - PRACTICANTES (MEJORADO)
 # ========================================
 elif opcion == "Mis pendientes":
     st.markdown(f"<h2 style='color: #005691;'>📋 Mis Pendientes - {st.session_state.responsable}</h2>", unsafe_allow_html=True)
@@ -398,37 +397,22 @@ elif opcion == "Mis pendientes":
     if df_mis.empty:
         st.markdown("## 🎉 ¡Felicidades!")
         st.success("**No tienes materiales pendientes.** ✅")
-        st.info("Crea nuevas solicitudes o espera que los ingenieros asignen materiales a tus líneas.")
     else:
-        # MÉTRICAS PERSONALES
-        col1, col2, col3, col4 = st.columns(4)
+        # MÉTRICAS MEJORADAS (5 columnas)
+        col1, col2, col3, col4, col5 = st.columns(5)
         col1.metric("📋 Total pendientes", len(df_mis))
         col2.metric("🗂️ En revisión", len(df_mis[df_mis["Estatus"] == "En revisión de ingeniería"]))
         col3.metric("🧾 En cotización", len(df_mis[df_mis["Estatus"] == "En cotización"]))
         col4.metric("⚙️ En alta SAP", len(df_mis[df_mis["Estatus"] == "En alta SAP"]))
+        col5.metric("⏳ Espera InfoRecord", len(df_mis[df_mis["Estatus"] == "En espera de InfoRecord"]))
         
         st.markdown("---")
-        
-        # TABLA CON COLORES
         st.markdown("<h3 style='color: #1976d2;'>📊 Materiales Pendientes</h3>", unsafe_allow_html=True)
         df_mostrar = df_mis[["ID_Material", "ID_Solicitud", "Descripcion", "Linea", "Estatus", "Prioridad"]].copy()
         df_mostrar["Estatus"] = df_mostrar["Estatus"].apply(estatus_coloreado)
         st.markdown(df_mostrar.to_html(escape=False, index=False), unsafe_allow_html=True)
         
-        # FILTRO RÁPIDO
-        col_filt1, col_filt2 = st.columns(2)
-        filtro_linea = col_filt1.selectbox("Filtrar línea:", ["Todas"] + mis_lineas)
-        filtro_estatus = col_filt2.selectbox("Filtrar estatus:", ["Todos"] + STATUS)
-        
-        if filtro_linea != "Todas" or filtro_estatus != "Todos":
-            df_filtrado = df_mis.copy()
-            if filtro_linea != "Todas": df_filtrado = df_filtrado[df_filtrado["Linea"] == filtro_linea]
-            if filtro_estatus != "Todos": df_filtrado = df_filtrado[df_filtrado["Estatus"] == filtro_estatus]
-            df_mostrar_f = df_filtrado[["ID_Material", "Descripcion", "Linea", "Estatus"]].copy()
-            df_mostrar_f["Estatus"] = df_mostrar_f["Estatus"].apply(estatus_coloreado)
-            st.markdown(df_mostrar_f.to_html(escape=False, index=False), unsafe_allow_html=True)
-        
-        # ACTUALIZAR MATERIAL INDIVIDUAL
+        # ACTUALIZAR MATERIAL INDIVIDUAL - MOSTRAR TODO
         st.markdown("---")
         st.markdown("<h3 style='color: #666;'>🔄 Actualizar Material</h3>", unsafe_allow_html=True)
         id_material = st.text_input("🔍 Ingresa ID_Material:")
@@ -437,11 +421,31 @@ elif opcion == "Mis pendientes":
             idx = df_materiales[df_materiales["ID_Material"] == id_material].index[0]
             reg = df_materiales.loc[idx]
             
-            col_info1, col_info2 = st.columns(2)
+            st.markdown("---")
+            st.markdown(f"<h4 style='color: #005691;'>📋 **Información Completa del Material**</h4>", unsafe_allow_html=True)
+            
+            col_info1, col_info2 = st.columns([1, 1])
             with col_info1:
-                st.markdown(f"**{reg['Descripcion']}**")
-                st.markdown(f"**Línea:** {reg['Linea']} | **Prioridad:** {reg['Prioridad']}")
-                st.markdown(f"**Estatus actual:** {estatus_coloreado(reg['Estatus'])}", unsafe_allow_html=True)
+                st.markdown(f"**👨‍🔧 Ingeniero:** {reg['Ingeniero']}")
+                st.markdown(f"**🏭 Línea:** {reg['Linea']}")
+                st.markdown(f"**🔥 Prioridad:** {reg['Prioridad']}")
+                st.markdown(f"**📝 Comentario solicitud:** {reg.get('Comentario_Solicitud', 'N/A')}")
+            
+            with col_info2:
+                st.markdown(f"**📦 Item:** {reg.get('Item', 'N/A')}")
+                st.markdown(f"**📄 Descripción:** **{reg['Descripcion']}**")
+                st.markdown(f"**🏢 Estación:** {reg.get('Estacion', 'N/A')}")
+            
+            col_detalle1, col_detalle2 = st.columns([1, 1])
+            with col_detalle1:
+                st.markdown(f"**📊 Stock requerido:** {reg.get('Cant_Stock_Requerida', 0)}")
+                st.markdown(f"**⚙️ Equipos:** {reg.get('Cant_Equipos', 0)}")
+                st.markdown(f"**🔩 Partes/equipo:** {reg.get('Cant_Partes_Equipo', 0)}")
+            
+            with col_detalle2:
+                st.markdown(f"**💡 RP sugerido:** {reg.get('RP_Sugerido', 'N/A')}")
+                st.markdown(f"**🏭 Fabricante:** {reg.get('Manufacturer', 'N/A')}")
+                st.markdown(f"**📋 Estatus actual:** {estatus_coloreado(reg['Estatus'])}", unsafe_allow_html=True)
             
             col_est1, col_est2 = st.columns(2)
             nuevo_estatus = col_est1.selectbox("➡️ Nuevo estatus:", STATUS, 
@@ -461,12 +465,9 @@ elif opcion == "Mis pendientes":
                 df_materiales.loc[idx, "Material_SAP"] = material_sap
                 df_materiales.loc[idx, "InfoRecord_SAP"] = info_sap
                 
-                # FECHAS AUTOMÁTICAS
                 fecha = datetime.now()
-                if nuevo_estatus == "En cotización": df_materiales.loc[idx, "Fecha_Cotizacion"] = fecha
-                elif nuevo_estatus == "En alta SAP": df_materiales.loc[idx, "Fecha_Alta_SAP"] = fecha
-                elif nuevo_estatus == "Info record creado": df_materiales.loc[idx, "Fecha_InfoRecord"] = fecha
-                elif nuevo_estatus == "Alta finalizada": df_materiales.loc[idx, "Fecha_Finalizada"] = fecha
+                if nuevo_estatus in FECHA_MAP:
+                    df_materiales.loc[idx, FECHA_MAP[nuevo_estatus]] = fecha
                 
                 guardar_datos(df_materiales, df_historial)
                 st.success("✅ **Material actualizado correctamente!** 🎉")
@@ -474,12 +475,11 @@ elif opcion == "Mis pendientes":
                 st.rerun()
 
 # ========================================
-# DASHBOARD JEFA
+# DASHBOARD JEFA (MEJORADO CON GRÁFICAS)
 # ========================================
 elif opcion == "Dashboard":
-    st.markdown("<h2 style='color: #005691;'>📈 Dashboard Ejecutivo</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='color: #005691;'>📈 Dashboard Ejecutivo - Practicantes</h2>", unsafe_allow_html=True)
     
-    # MÉTRICAS GENERALES
     col1, col2, col3, col4 = st.columns(4)
     total_materiales = len(df_materiales)
     pendientes_total = len(df_materiales[df_materiales["Estatus"] != "Alta finalizada"])
@@ -490,22 +490,48 @@ elif opcion == "Dashboard":
     col3.metric("✅ Finalizados", finalizados)
     col4.metric("📊 % Completado", f"{finalizados/total_materiales*100:.1f}%" if total_materiales > 0 else "0%")
     
-    # GRÁFICAS
-    col_graf1, col_graf2 = st.columns(2)
-    with col_graf1:
-        st.markdown("<h3>📊 Por Estatus</h3>", unsafe_allow_html=True)
-        st.bar_chart(df_materiales["Estatus"].value_counts())
+    st.markdown("---")
+    st.markdown("<h3 style='color: #005691;'>👥 Productividad por Practicante</h3>", unsafe_allow_html=True)
     
-    with col_graf2:
-        st.markdown("<h3>🏭 Por Línea</h3>", unsafe_allow_html=True)
-        st.bar_chart(df_materiales["Linea"].value_counts().head(10))
+    df_pract = df_materiales[df_materiales["Practicante_Asignado"] != ""].copy()
+    if not df_pract.empty:
+        resumen_pract = df_pract.groupby("Practicante_Asignado")["Estatus"].value_counts().unstack(fill_value=0)
+        
+        col_graf1, col_graf2 = st.columns([2, 1])
+        with col_graf1:
+            st.markdown("**📊 Estatus por Practicante**")
+            st.bar_chart(resumen_pract)
+        
+        with col_graf2:
+            st.markdown("**🎯 Total por Practicante**")
+            totales_pract = df_pract["Practicante_Asignado"].value_counts()
+            st.bar_chart(totales_pract)
+    else:
+        st.info("📭 No hay materiales asignados a practicantes aún")
     
-    # PRODUCTIVIDAD POR PRACTICANTE
-    st.markdown("<h3>👥 Productividad por Practicante</h3>", unsafe_allow_html=True)
-    df_finalizados = df_materiales[df_materiales["Estatus"] == "Alta finalizada"]
-    if not df_finalizados.empty:
-        productividad = df_finalizados["Practicante_Asignado"].value_counts()
-        st.bar_chart(productividad)
+    # DESCARGAS
+    st.markdown("---")
+    st.markdown("<h3 style='color: #1976d2;'>📥 Descargar Reportes</h3>", unsafe_allow_html=True)
+    col_desc1, col_desc2 = st.columns(2)
+    
+    with col_desc1:
+        st.download_button("📊 Reporte Completo Excel", data=df_to_excel_bytes(df_materiales),
+                         file_name=f"reporte_materiales_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    
+    with col_desc2:
+        if not df_pract.empty:
+            st.download_button("📈 Resumen Practicantes", data=df_to_excel_bytes(resumen_pract.reset_index()),
+                             file_name=f"resumen_practicantes_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    
+    # TABLA DETALLADA
+    st.markdown("---")
+    practicante_sel = st.selectbox("👤 Seleccionar practicante:", ["TODOS"] + list(LINEAS_POR_PRACTICANTE.keys()))
+    if practicante_sel != "TODOS":
+        lineas_pract = LINEAS_POR_PRACTICANTE[practicante_sel]
+        df_filtrado = df_materiales[df_materiales["Linea"].isin(lineas_pract)]
+        st.dataframe(df_filtrado, use_container_width=True)
 
 # ========================================
 # SEGUIMIENTO COMPLETO
@@ -528,7 +554,7 @@ elif opcion in ["Seguimiento", "Seguimiento completo"]:
     st.markdown(df_view_mostrar.to_html(escape=False, index=False), unsafe_allow_html=True)
 
 # ========================================
-# MIS SOLICITUDES (INGENIEROS)
+# MIS SOLICITUDES
 # ========================================
 elif opcion == "Mis solicitudes":
     st.markdown(f"<h2 style='color: #005691;'>📋 Mis Solicitudes - {st.session_state.user}</h2>", unsafe_allow_html=True)
