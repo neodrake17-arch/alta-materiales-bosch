@@ -5,6 +5,9 @@ import os
 import uuid
 from io import BytesIO
 from PIL import Image
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # Configuración
 st.set_page_config(page_title="Alta de Materiales Bosch", layout="wide")
@@ -26,6 +29,8 @@ h1 { font-size: 2.5em; margin-bottom: 1rem; }
 .btn-logout:hover { background-color: #b71c1c !important; }
 .btn-download { background-color: #1976d2 !important; }
 .btn-download:hover { background-color: #1565c0 !important; }
+.btn-update { background-color: #4caf50 !important; }
+.btn-update:hover { background-color: #388e3c !important; }
 .alert-pendiente { color: #d32f2f !important; font-weight: bold; font-size: 1.3em; }
 .status-revision { color: #666666; font-weight: bold; }
 .status-cotizacion { color: #ff9800; font-weight: bold; }
@@ -49,6 +54,7 @@ h1 { font-size: 2.5em; margin-bottom: 1rem; }
 .file-link:hover { background: linear-gradient(45deg, #1565c0, #2196f3) !important; }
 .file-zone { border: 2px dashed #005691; border-radius: 10px; padding: 20px; text-align: center; background: #f8f9fa; }
 @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+.status-select { width: 180px !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -119,13 +125,11 @@ def generar_id_material():
     return f"MAT-{uuid.uuid4().hex[:8].upper()}"
 
 def guardar_archivo(uploaded_file, material_id):
-    """Guarda imagen o PDF con nombre único - ✅ SOLUCIONADO TypeError"""
     if uploaded_file is not None and hasattr(uploaded_file, 'getbuffer'):
         try:
             ext = os.path.splitext(uploaded_file.name)[1].lower()
             filename = f"{material_id}{ext}"
             filepath = os.path.join(IMG_FOLDER, filename)
-            
             with open(filepath, "wb") as f:
                 f.write(uploaded_file.getbuffer())
             return filename
@@ -135,10 +139,8 @@ def guardar_archivo(uploaded_file, material_id):
     return ""
 
 def crear_link_archivo(filename):
-    """Crea enlace HTML descargable para archivo - ✅ SOLUCIONADO NaN/None"""
     if pd.isna(filename) or filename == "" or filename is None:
         return "❌"
-    
     filepath = os.path.join(IMG_FOLDER, str(filename))
     if os.path.exists(filepath):
         tipo = "📷" if str(filename).lower().endswith(('.png', '.jpg', '.jpeg')) else "📄"
@@ -170,9 +172,32 @@ def contar_pendientes(usuario, df_materiales):
     return 0
 
 def safe_columns(df, columnas_deseadas):
-    """✅ SOLUCION DEFINITIVA KeyError - Solo selecciona columnas existentes"""
     columnas_existentes = [col for col in columnas_deseadas if col in df.columns]
     return df[columnas_existentes].copy() if columnas_existentes else pd.DataFrame()
+
+def procesar_excel_masivo(uploaded_file):
+    """Procesa Excel masivo de ingenieros"""
+    try:
+        df_excel = pd.read_excel(uploaded_file)
+        columnas_requeridas = ["Item", "Descripcion", "Estacion", "Categoria", 
+                              "Cant_Stock_Requerida", "Cant_Equipos", 
+                              "Cant_Partes_Equipo", "RP_Sugerido", "Manufacturer"]
+        
+        # Validar columnas mínimas
+        cols_presentes = [col for col in columnas_requeridas if col in df_excel.columns]
+        if len(cols_presentes) < 3:
+            return None, "❌ Faltan columnas obligatorias: Descripcion es requerida"
+        
+        # Limpiar y validar datos
+        df_excel = df_excel.dropna(subset=["Descripcion"])
+        df_excel["Categoria"] = df_excel["Categoria"].fillna("MAZE")
+        df_excel["Cant_Stock_Requerida"] = pd.to_numeric(df_excel["Cant_Stock_Requerida"], errors='coerce').fillna(0)
+        df_excel["Cant_Equipos"] = pd.to_numeric(df_excel["Cant_Equipos"], errors='coerce').fillna(0)
+        df_excel["Cant_Partes_Equipo"] = pd.to_numeric(df_excel["Cant_Partes_Equipo"], errors='coerce').fillna(0)
+        
+        return df_excel, f"✅ {len(df_excel)} materiales procesados correctamente"
+    except Exception as e:
+        return None, f"❌ Error procesando Excel: {str(e)}"
 
 # ✅ INICIALIZAR BASE DE DATOS CON TODAS LAS COLUMNAS
 COLUMNAS_COMPLETAS = [
@@ -268,7 +293,7 @@ with st.sidebar:
     st.markdown("---")
     
     if st.session_state.rol == "practicante":
-        opcion = st.radio("Navegar:", ["Mis pendientes", "Seguimiento completo", "Nueva solicitud"])
+        opcion = st.radio("Navegar:", ["Mis pendientes", "Seguimiento completo", "Actualizar estatus", "Nueva solicitud"])
     elif st.session_state.rol == "jefa":
         st.metric("📊 Total pendientes sistema", pendientes_usuario)
         opcion = st.radio("Navegar:", ["Dashboard", "Seguimiento", "Nueva solicitud"])
@@ -276,7 +301,7 @@ with st.sidebar:
         opcion = st.radio("Navegar:", ["Nueva solicitud", "Mis solicitudes"])
 
 # ========================================
-# NUEVA SOLICITUD - FORMULARIO DINÁMICO ✅
+# NUEVA SOLICITUD - FORMULARIO MEJORADO ✅
 # ========================================
 if opcion == "Nueva solicitud":
     st.markdown("<h2 style='color: #005691;'>📋 Nueva Solicitud de Materiales</h2>", unsafe_allow_html=True)
@@ -313,7 +338,6 @@ if opcion == "Nueva solicitud":
                     rp = st.text_input("RP sugerido", key=f"rp_{i}")
                     fabricante = st.text_input("Fabricante/Proveedor", key=f"fab_{i}")
                 
-                # ✅ SUBIDA DE ARCHIVO CON PREVIEW
                 st.markdown(f"<div class='file-zone'><h4>📎 **Adjuntar imagen o PDF** *(opcional)*</h4><small>JPG, PNG, PDF hasta 5MB</small></div>", unsafe_allow_html=True)
                 uploaded_file = st.file_uploader(f"Archivo para Material {i+1}", 
                                                type=['png', 'jpg', 'jpeg', 'pdf'], 
@@ -383,8 +407,6 @@ if opcion == "Nueva solicitud":
                         df_materiales_nuevo = pd.concat([df_materiales, df_nuevos], ignore_index=True)
                         if guardar_datos(df_materiales_nuevo, df_historial):
                             st.success(f"✅ **Solicitud {id_solicitud}** creada con **{len(registros)}** materiales")
-                            if any(r.get("Archivo_Adjunto") for r in registros):
-                                st.info("📎 **Archivos guardados** en carpeta 'imagenes/'")
                             st.balloons()
                             st.rerun()
                         else:
@@ -394,12 +416,74 @@ if opcion == "Nueva solicitud":
             
             with col_count:
                 st.metric("Materiales a crear", len([m for m in materiales if m["Descripcion"].strip()]))
+    
+    with tab2:
+        st.info("**📊 Sube tu Excel masivo con +50 materiales**")
+        st.markdown("""
+        **Formato Excel requerido:**
+        - Descripcion (obligatorio)
+        - Item, Estacion, Categoria (MAZE/FHMI/HIBE)
+        - Cant_Stock_Requerida, Cant_Equipos, Cant_Partes_Equipo
+        - RP_Sugerido, Manufacturer
+        """)
+        
+        uploaded_excel = st.file_uploader("📁 Subir Excel masivo", type="xlsx")
+        if uploaded_excel is not None:
+            df_procesado, mensaje = procesar_excel_masivo(uploaded_excel)
+            st.info(mensaje)
+            
+            if df_procesado is not None:
+                st.dataframe(df_procesado.head())
+                
+                if st.button("💾 Crear solicitud masiva", type="primary"):
+                    registros = []
+                    id_solicitud = generar_id_solicitud()
+                    
+                    for idx, row in df_procesado.iterrows():
+                        id_material = generar_id_material()
+                        registro = {
+                            "ID_Material": id_material,
+                            "ID_Solicitud": id_solicitud,
+                            "Fecha_Solicitud": datetime.now(),
+                            "Ingeniero": ingeniero,
+                            "Linea": linea,
+                            "Prioridad": prioridad,
+                            "Comentario_Solicitud": "Solicitud masiva via Excel",
+                            "Item": row.get("Item", ""),
+                            "Descripcion": row["Descripcion"],
+                            "Estacion": row.get("Estacion", ""),
+                            "Categoria": row["Categoria"],
+                            "Cant_Stock_Requerida": row["Cant_Stock_Requerida"],
+                            "Cant_Equipos": row["Cant_Equipos"],
+                            "Cant_Partes_Equipo": row["Cant_Partes_Equipo"],
+                            "RP_Sugerido": row.get("RP_Sugerido", ""),
+                            "Manufacturer": row.get("Manufacturer", ""),
+                            "Archivo_Adjunto": "",
+                            "Estatus": "En revisión de ingeniería",
+                            "Practicante_Asignado": "",
+                            "Fecha_Revision": datetime.now(),
+                            "Fecha_Cotizacion": pd.NaT,
+                            "Fecha_Alta_SAP": pd.NaT,
+                            "Fecha_InfoRecord": pd.NaT,
+                            "Fecha_Finalizada": pd.NaT,
+                            "Comentario_Estatus": "",
+                            "Material_SAP": "",
+                            "InfoRecord_SAP": ""
+                        }
+                        registros.append(registro)
+                    
+                    df_nuevos = pd.DataFrame(registros)
+                    df_materiales_nuevo = pd.concat([df_materiales, df_nuevos], ignore_index=True)
+                    if guardar_datos(df_materiales_nuevo, df_historial):
+                        st.success(f"✅ **Solicitud masiva {id_solicitud}** con **{len(registros)}** materiales creada")
+                        st.balloons()
+                        st.rerun()
 
 # ========================================
-# MIS PENDIENTES ✅ CON ENLACES DESCARGABLES
+# MIS PENDIENTES ✅ TABLA COMPLETA CON TODOS LOS DATOS
 # ========================================
 elif opcion == "Mis pendientes":
-    st.markdown(f"<h2 style='color: #005691;'>📋 Mis Pendientes - {st.session_state.responsable}</h2>", unsafe_allow_html=True)
+    st.markdown(f"<h2 style='color: #005691;'>📋 Materiales Pendientes - {st.session_state.responsable}</h2>", unsafe_allow_html=True)
     
     mis_lineas = LINEAS_POR_PRACTICANTE.get(st.session_state.responsable, [])
     df_mis = df_materiales[
@@ -420,32 +504,102 @@ elif opcion == "Mis pendientes":
         col5.metric("⏳ Espera InfoRecord", len(df_mis[df_mis["Estatus"] == "En espera de InfoRecord"]))
         
         st.markdown("---")
-        st.markdown("<h3 style='color: #1976d2;'>📊 Materiales Pendientes - CON ARCHIVOS</h3>", unsafe_allow_html=True)
         
-        # ✅ TABLA CON ENLACES DESCARGABLES - SIN ERRORES
-        columnas_tabla = ["ID_Material", "ID_Solicitud", "Ingeniero", "Linea", "Categoria",
-                         "Descripcion", "Item", "Estacion", "Cant_Stock_Requerida", 
-                         "Cant_Equipos", "Cant_Partes_Equipo", "RP_Sugerido", 
-                         "Manufacturer", "Estatus", "Prioridad", "Practicante_Asignado", "Archivo_Adjunto"]
+        # ✅ TABLA COMPLETA CON TODOS LOS DATOS DE INGENIEROS
+        columnas_completas = [
+            "ID_Material", "ID_Solicitud", "Ingeniero", "Linea", "Prioridad",
+            "Item", "Descripcion", "Estacion", "Categoria", 
+            "Cant_Stock_Requerida", "Cant_Equipos", "Cant_Partes_Equipo", 
+            "RP_Sugerido", "Manufacturer", "Archivo_Adjunto", "Estatus"
+        ]
         
-        df_mostrar = safe_columns(df_mis, columnas_tabla)
+        df_mostrar = safe_columns(df_mis, columnas_completas)
         df_mostrar["Archivo"] = df_mostrar["Archivo_Adjunto"].apply(crear_link_archivo)
         
         if "Estatus" in df_mostrar.columns:
             df_mostrar["Estatus"] = df_mostrar["Estatus"].apply(estatus_coloreado)
         
-        columnas_mostrar = ["ID_Material", "Descripcion", "Linea", "Estatus", "Prioridad", "Archivo"]
+        # Mostrar TODAS las columnas importantes
+        columnas_mostrar = ["ID_Material", "Ingeniero", "Linea", "Prioridad", "Item", 
+                           "Descripcion", "Estacion", "Categoria", "Cant_Stock_Requerida",
+                           "RP_Sugerido", "Manufacturer", "Estatus", "Archivo"]
         columnas_finales = [col for col in columnas_mostrar if col in df_mostrar.columns]
         
         html_table = df_mostrar[columnas_finales].to_html(escape=False, index=False)
         st.markdown(html_table, unsafe_allow_html=True)
 
 # ========================================
-# DASHBOARD JEFA ✅ COMPLETO
+# ACTUALIZAR ESTATUS ✅ NUEVA FUNCIONALIDAD
+# ========================================
+elif opcion == "Actualizar estatus":
+    st.markdown("<h2 style='color: #005691;'>🔄 Actualizar Estatus de Materiales</h2>", unsafe_allow_html=True)
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        filtro_linea = st.selectbox("🏭 Filtrar por línea:", ["Mis líneas"] + LINEAS)
+    with col2:
+        filtro_estatus = st.selectbox("📋 Mostrar solo:", ["Todos"] + STATUS)
+    
+    if filtro_linea == "Mis líneas":
+        lineas_filtro = LINEAS_POR_PRACTICANTE.get(st.session_state.responsable, [])
+        df_edit = df_materiales[df_materiales["Linea"].isin(lineas_filtro)].copy()
+    else:
+        df_edit = df_materiales[df_materiales["Linea"] == filtro_linea].copy()
+    
+    if filtro_estatus != "Todos":
+        df_edit = df_edit[df_edit["Estatus"] == filtro_estatus].copy()
+    
+    if df_edit.empty:
+        st.warning("No hay materiales para mostrar")
+    else:
+        st.markdown("**Selecciona materiales y actualiza su estatus:**")
+        
+        for idx, row in df_edit.iterrows():
+            with st.expander(f"🔧 {row['ID_Material']} - {row['Descripcion'][:50]}... | {row['Linea']} | {row['Estatus']}"):
+                col1, col2, col3 = st.columns([1, 2, 2])
+                
+                with col1:
+                    nuevo_estatus = st.selectbox(
+                        "Nuevo estatus:", STATUS, 
+                        index=STATUS.index(row["Estatus"]) if row["Estatus"] in STATUS else 0,
+                        key=f"status_{row['ID_Material']}",
+                        help="Cambiará el color automáticamente"
+                    )
+                
+                with col2:
+                    comentario = st.text_input(
+                        "Comentario:", 
+                        value=row.get("Comentario_Estatus", ""),
+                        key=f"comment_{row['ID_Material']}"
+                    )
+                
+                with col3:
+                    if st.button(f"✅ Actualizar {row['ID_Material']}", key=f"update_{row['ID_Material']}"):
+                        # Actualizar registro
+                        mask = df_materiales["ID_Material"] == row["ID_Material"]
+                        df_materiales.loc[mask, "Estatus"] = nuevo_estatus
+                        
+                        if nuevo_estatus != row["Estatus"]:
+                            fecha_col = FECHA_MAP.get(nuevo_estatus)
+                            if fecha_col:
+                                df_materiales.loc[mask, fecha_col] = datetime.now()
+                        
+                        df_materiales.loc[mask, "Comentario_Estatus"] = comentario
+                        df_materiales.loc[mask, "Practicante_Asignado"] = st.session_state.responsable
+                        
+                        if guardar_datos(df_materiales, df_historial):
+                            st.success(f"✅ {row['ID_Material']} actualizado a **{nuevo_estatus}**")
+                            st.rerun()
+                        else:
+                            st.error("❌ Error guardando cambios")
+
+# ========================================
+# DASHBOARD JEFA ✅ CON GRÁFICOS COMPLETOS
 # ========================================
 elif opcion == "Dashboard":
     st.markdown("<h2 style='color: #005691;'>📈 Dashboard Ejecutivo</h2>", unsafe_allow_html=True)
     
+    # MÉTRICAS PRINCIPALES
     col1, col2, col3, col4 = st.columns(4)
     total_materiales = len(df_materiales)
     pendientes_total = len(df_materiales[df_materiales["Estatus"] != "Alta finalizada"])
@@ -456,6 +610,46 @@ elif opcion == "Dashboard":
     col3.metric("✅ Finalizados", finalizados)
     col4.metric("📊 % Completado", f"{finalizados/total_materiales*100:.1f}%" if total_materiales > 0 else "0%")
     
+    st.markdown("---")
+    
+    # GRÁFICO 1: ESTATUS DE MATERIALES
+    st.subheader("📊 Distribución por Estatus")
+    df_estatus = df_materiales["Estatus"].value_counts().reset_index()
+    df_estatus.columns = ["Estatus", "Cantidad"]
+    
+    fig_pie = px.pie(df_estatus, values="Cantidad", names="Estatus", 
+                     color_discrete_sequence=["#666666", "#ff9800", "#1976d2", "#f57c00", "#8e24aa", "#388e3c"],
+                     title="Estatus Actual de Materiales")
+    fig_pie.update_traces(textposition='inside', textinfo='percent+label')
+    fig_pie.update_layout(height=400)
+    st.plotly_chart(fig_pie, use_container_width=True)
+    
+    # GRÁFICO 2: POR PRACTICANTE
+    st.subheader("👥 Materiales por Practicante")
+    df_pract = df_materiales.groupby("Practicante_Asignado")["Practicante_Asignado"].count().reset_index(name="Cantidad")
+    df_pract["Practicante_Asignado"] = df_pract["Practicante_Asignado"].fillna("Sin asignar")
+    
+    fig_bar = px.bar(df_pract, x="Practicante_Asignado", y="Cantidad", 
+                     title="Distribución de Materiales por Practicante",
+                     color="Cantidad", color_continuous_scale="Viridis")
+    fig_bar.update_layout(height=400)
+    st.plotly_chart(fig_bar, use_container_width=True)
+    
+    # GRÁFICO 3: AVANCE POR LÍNEA
+    st.subheader("🏭 Avance por Línea de Producción")
+    avance_linea = df_materiales.groupby("Linea").agg({
+        "Estatus": lambda x: ("Alta finalizada" in x.values).sum()
+    }).rename(columns={"Estatus": "Finalizados"})
+    avance_linea["Total"] = df_materiales["Linea"].value_counts()
+    avance_linea["Porcentaje"] = (avance_linea["Finalizados"] / avance_linea["Total"] * 100).round(1)
+    
+    fig_linea = px.bar(avance_linea.reset_index(), x="Linea", y="Porcentaje",
+                       title="Avance % por Línea",
+                       color="Porcentaje", color_continuous_scale="RdYlGn")
+    fig_linea.update_layout(height=400)
+    st.plotly_chart(fig_linea, use_container_width=True)
+    
+    # BOTONES DE DESCARGA
     col_desc1, col_desc2 = st.columns(2)
     with col_desc1:
         st.download_button("📊 Reporte Completo", 
@@ -463,8 +657,7 @@ elif opcion == "Dashboard":
                           file_name=f"reporte_materiales_{datetime.now().strftime('%Y%m%d')}.xlsx",
                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     
-    st.markdown("---")
-    practicante_sel = st.selectbox("👤 Practicante:", ["TODOS"] + list(LINEAS_POR_PRACTICANTE.keys()))
+    practicante_sel = st.selectbox("👤 Ver detalle por practicante:", ["TODOS"] + list(LINEAS_POR_PRACTICANTE.keys()))
     if practicante_sel != "TODOS":
         lineas_pract = LINEAS_POR_PRACTICANTE[practicante_sel]
         df_filtrado = df_materiales[df_materiales["Linea"].isin(lineas_pract)]
@@ -504,7 +697,8 @@ st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666; padding: 1rem; font-size: 0.9em; border-top: 1px solid #eee;'>
     🔧 <strong>Sistema de Gestión de Materiales Bosch</strong> © 2026 | 
-    📁 <code>imagenes/</code> | 🗄️ <code>bd_materiales.xlsx</code> | ✅ <strong>100% FUNCIONAL</strong>
+    📁 <code>imagenes/</code> | 🗄️ <code>bd_materiales.xlsx</code> | 
+    ✅ <strong>Dashboard + Estatus + Excel Masivo ACTIVOS</strong>
 </div>
 """, unsafe_allow_html=True)
 
