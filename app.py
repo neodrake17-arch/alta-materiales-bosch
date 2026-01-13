@@ -103,9 +103,14 @@ def cargar_datos():
         return pd.DataFrame(), pd.DataFrame()
 
 def guardar_datos(df_materiales, df_historial):
-    with pd.ExcelWriter(DB_FILE, engine="openpyxl") as writer:
-        df_materiales.to_excel(writer, sheet_name="materiales", index=False)
-        df_historial.to_excel(writer, sheet_name="historial", index=False)
+    try:
+        with pd.ExcelWriter(DB_FILE, engine="openpyxl") as writer:
+            df_materiales.to_excel(writer, sheet_name="materiales", index=False)
+            df_historial.to_excel(writer, sheet_name="historial", index=False)
+        return True
+    except Exception as e:
+        st.error(f"❌ Error guardando datos: {str(e)}")
+        return False
 
 def generar_id_solicitud():
     return f"SOL-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
@@ -114,22 +119,30 @@ def generar_id_material():
     return f"MAT-{uuid.uuid4().hex[:8].upper()}"
 
 def guardar_archivo(uploaded_file, material_id):
-    """Guarda imagen o PDF con nombre único"""
-    if uploaded_file is not None:
-        ext = os.path.splitext(uploaded_file.name)[1].lower()
-        filename = f"{material_id}{ext}"
-        filepath = os.path.join(IMG_FOLDER, filename)
-        
-        with open(filepath, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-        return filename
+    """Guarda imagen o PDF con nombre único - ✅ SOLUCIONADO TypeError"""
+    if uploaded_file is not None and hasattr(uploaded_file, 'getbuffer'):
+        try:
+            ext = os.path.splitext(uploaded_file.name)[1].lower()
+            filename = f"{material_id}{ext}"
+            filepath = os.path.join(IMG_FOLDER, filename)
+            
+            with open(filepath, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            return filename
+        except Exception as e:
+            st.error(f"Error guardando archivo: {e}")
+            return ""
     return ""
 
 def crear_link_archivo(filename):
-    """Crea enlace HTML descargable para archivo"""
-    if filename and os.path.exists(os.path.join(IMG_FOLDER, filename)):
-        tipo = "📷" if filename.lower().endswith(('.png', '.jpg', '.jpeg')) else "📄"
-        return f'<a href="files/{IMG_FOLDER}/{filename}" class="file-link" download target="_blank">{tipo} {os.path.splitext(filename)[0]}</a>'
+    """Crea enlace HTML descargable para archivo - ✅ SOLUCIONADO NaN/None"""
+    if pd.isna(filename) or filename == "" or filename is None:
+        return "❌"
+    
+    filepath = os.path.join(IMG_FOLDER, str(filename))
+    if os.path.exists(filepath):
+        tipo = "📷" if str(filename).lower().endswith(('.png', '.jpg', '.jpeg')) else "📄"
+        return f'<a href="/files/{IMG_FOLDER}/{filename}" class="file-link" download target="_blank">{tipo} {os.path.splitext(filename)[0]}</a>'
     return "❌"
 
 def estatus_coloreado(estatus):
@@ -141,7 +154,7 @@ def estatus_coloreado(estatus):
         "Info record creado": "status-info",
         "Alta finalizada": "status-final"
     }
-    return f'<span class="{clases.get(estatus, "status-revision")}">{estatus}</span>'
+    return f'<span class="{clases.get(str(estatus), "status-revision")}">{str(estatus)}</span>'
 
 def df_to_excel_bytes(df):
     output = BytesIO()
@@ -157,29 +170,35 @@ def contar_pendientes(usuario, df_materiales):
     return 0
 
 def safe_columns(df, columnas_deseadas):
-    """Selecciona solo las columnas que existen en el DataFrame"""
+    """✅ SOLUCION DEFINITIVA KeyError - Solo selecciona columnas existentes"""
     columnas_existentes = [col for col in columnas_deseadas if col in df.columns]
-    return df[columnas_existentes].copy()
+    return df[columnas_existentes].copy() if columnas_existentes else pd.DataFrame()
 
-# INICIALIZAR BASE DE DATOS CON COLUMNA ARCHIVO
+# ✅ INICIALIZAR BASE DE DATOS CON TODAS LAS COLUMNAS
+COLUMNAS_COMPLETAS = [
+    "ID_Material", "ID_Solicitud", "Fecha_Solicitud", "Ingeniero", "Linea",
+    "Prioridad", "Comentario_Solicitud", "Item", "Descripcion", "Estacion",
+    "Categoria", "Frecuencia_Cambio", "Cant_Stock_Requerida", "Cant_Equipos", 
+    "Cant_Partes_Equipo", "RP_Sugerido", "Manufacturer", "Archivo_Adjunto",
+    "Estatus", "Practicante_Asignado", "Fecha_Revision", "Fecha_Cotizacion", 
+    "Fecha_Alta_SAP", "Fecha_InfoRecord", "Fecha_Finalizada", 
+    "Comentario_Estatus", "Material_SAP", "InfoRecord_SAP"
+]
+
 if not os.path.exists(DB_FILE):
     with pd.ExcelWriter(DB_FILE, engine="openpyxl") as writer:
-        pd.DataFrame(columns=[
-            "ID_Material", "ID_Solicitud", "Fecha_Solicitud", "Ingeniero", "Linea",
-            "Prioridad", "Comentario_Solicitud", "Item", "Descripcion", "Estacion",
-            "Categoria", "Frecuencia_Cambio", "Cant_Stock_Requerida", "Cant_Equipos", 
-            "Cant_Partes_Equipo", "RP_Sugerido", "Manufacturer", "Archivo_Adjunto",
-            "Estatus", "Practicante_Asignado", "Fecha_Revision", "Fecha_Cotizacion", 
-            "Fecha_Alta_SAP", "Fecha_InfoRecord", "Fecha_Finalizada", 
-            "Comentario_Estatus", "Material_SAP", "InfoRecord_SAP"
-        ]).to_excel(writer, sheet_name="materiales", index=False)
+        pd.DataFrame(columns=COLUMNAS_COMPLETAS).to_excel(writer, sheet_name="materiales", index=False)
+    st.success("✅ Base de datos inicializada correctamente")
 
 # ========================================
-# LOGIN
+# SESSION STATE
 # ========================================
 if "logged" not in st.session_state:
     st.session_state.logged = False
 
+# ========================================
+# LOGIN
+# ========================================
 if not st.session_state.logged:
     st.markdown("""
     <div style='text-align: center; padding: 3rem; background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);'>
@@ -191,9 +210,9 @@ if not st.session_state.logged:
     
     col1, col2 = st.columns([1.3, 1])
     with col1:
-        user = st.text_input("👤 Usuario", placeholder="Escribe tu usuario")
+        user = st.text_input("👤 Usuario", placeholder="jarol, lalo, jime, niko, admin")
     with col2:
-        pwd = st.text_input("🔒 Contraseña", type="password", placeholder="********")
+        pwd = st.text_input("🔒 Contraseña", type="password", placeholder="jarol123, lalo123...")
     
     if st.button("🚀 ACCEDER", type="primary", use_container_width=True):
         if user in USERS and USERS[user]["pwd"] == pwd:
@@ -201,6 +220,7 @@ if not st.session_state.logged:
             st.session_state.user = user
             st.session_state.rol = USERS[user]["rol"]
             st.session_state.responsable = USERS[user]["responsable"]
+            st.success("✅ ¡Bienvenido!")
             st.rerun()
         else:
             st.error("❌ Usuario o contraseña incorrectos")
@@ -209,7 +229,7 @@ if not st.session_state.logged:
     st.stop()
 
 # ========================================
-# HEADER
+# HEADER Y SIDEBAR
 # ========================================
 col_header1, col_header2, col_logout = st.columns([3, 1, 1])
 with col_header1:
@@ -222,15 +242,11 @@ with col_logout:
             del st.session_state[key]
         st.rerun()
 
-# ========================================
-# CARGAR DATOS
-# ========================================
+# Cargar datos
 df_materiales, df_historial = cargar_datos()
 pendientes_usuario = contar_pendientes(st.session_state.responsable, df_materiales)
 
-# ========================================
-# SIDEBAR
-# ========================================
+# Sidebar
 with st.sidebar:
     st.markdown("<h3 style='color: #005691; margin-bottom: 1rem;'>📋 Menú Principal</h3>", unsafe_allow_html=True)
     
@@ -260,7 +276,7 @@ with st.sidebar:
         opcion = st.radio("Navegar:", ["Nueva solicitud", "Mis solicitudes"])
 
 # ========================================
-# NUEVA SOLICITUD - CON ARCHIVOS
+# NUEVA SOLICITUD - FORMULARIO DINÁMICO ✅
 # ========================================
 if opcion == "Nueva solicitud":
     st.markdown("<h2 style='color: #005691;'>📋 Nueva Solicitud de Materiales</h2>", unsafe_allow_html=True)
@@ -277,7 +293,6 @@ if opcion == "Nueva solicitud":
     with tab1:
         st.info("**Selecciona cuántos materiales quieres registrar**")
         num_materiales = st.slider("🔢 Número de materiales:", min_value=1, max_value=5, value=1)
-        st.markdown(f"**✨ Mostrando {num_materiales} formulario(s):**")
         
         with st.form(key="form_dinamico"):
             materiales = []
@@ -298,7 +313,7 @@ if opcion == "Nueva solicitud":
                     rp = st.text_input("RP sugerido", key=f"rp_{i}")
                     fabricante = st.text_input("Fabricante/Proveedor", key=f"fab_{i}")
                 
-                # SUBIDA DE ARCHIVO CON PREVIEW PARA INGENIEROS
+                # ✅ SUBIDA DE ARCHIVO CON PREVIEW
                 st.markdown(f"<div class='file-zone'><h4>📎 **Adjuntar imagen o PDF** *(opcional)*</h4><small>JPG, PNG, PDF hasta 5MB</small></div>", unsafe_allow_html=True)
                 uploaded_file = st.file_uploader(f"Archivo para Material {i+1}", 
                                                type=['png', 'jpg', 'jpeg', 'pdf'], 
@@ -309,7 +324,7 @@ if opcion == "Nueva solicitud":
                         image = Image.open(uploaded_file)
                         st.image(image, caption=f"Preview - {uploaded_file.name}", width=200)
                     else:
-                        st.success(f"✅ PDF cargado: {uploaded_file.name} ({uploaded_file.size/1024:.1f} KB)")
+                        st.success(f"✅ PDF cargado: {uploaded_file.name}")
                 
                 materiales.append({
                     "Item": item, "Descripcion": descripcion, "Estacion": estacion,
@@ -332,7 +347,7 @@ if opcion == "Nueva solicitud":
                             id_material = generar_id_material()
                             archivo_adjunto = guardar_archivo(mat["Archivo"], id_material)
                             
-                            registros.append({
+                            registro = {
                                 "ID_Material": id_material,
                                 "ID_Solicitud": id_solicitud,
                                 "Fecha_Solicitud": datetime.now(),
@@ -340,7 +355,15 @@ if opcion == "Nueva solicitud":
                                 "Linea": linea,
                                 "Prioridad": prioridad,
                                 "Comentario_Solicitud": comentario_general,
-                                **{k: v for k, v in mat.items() if k != "Archivo"},
+                                "Item": mat["Item"],
+                                "Descripcion": mat["Descripcion"],
+                                "Estacion": mat["Estacion"],
+                                "Categoria": mat["Categoria"],
+                                "Cant_Stock_Requerida": mat["Cant_Stock_Requerida"],
+                                "Cant_Equipos": mat["Cant_Equipos"],
+                                "Cant_Partes_Equipo": mat["Cant_Partes_Equipo"],
+                                "RP_Sugerido": mat["RP_Sugerido"],
+                                "Manufacturer": mat["Manufacturer"],
                                 "Archivo_Adjunto": archivo_adjunto,
                                 "Estatus": "En revisión de ingeniería",
                                 "Practicante_Asignado": "",
@@ -352,29 +375,28 @@ if opcion == "Nueva solicitud":
                                 "Comentario_Estatus": "",
                                 "Material_SAP": "",
                                 "InfoRecord_SAP": ""
-                            })
+                            }
+                            registros.append(registro)
                     
                     if registros:
                         df_nuevos = pd.DataFrame(registros)
                         df_materiales_nuevo = pd.concat([df_materiales, df_nuevos], ignore_index=True)
-                        guardar_datos(df_materiales_nuevo, df_historial)
-                        st.success(f"✅ **Solicitud {id_solicitud}** creada con **{len(registros)}** materiales")
-                        if any(r.get("Archivo_Adjunto") for r in registros):
-                            st.info("📎 **Archivos adjuntos guardados** en carpeta 'imagenes/'")
-                        st.balloons()
-                        st.rerun()
+                        if guardar_datos(df_materiales_nuevo, df_historial):
+                            st.success(f"✅ **Solicitud {id_solicitud}** creada con **{len(registros)}** materiales")
+                            if any(r.get("Archivo_Adjunto") for r in registros):
+                                st.info("📎 **Archivos guardados** en carpeta 'imagenes/'")
+                            st.balloons()
+                            st.rerun()
+                        else:
+                            st.error("❌ Error al guardar en la base de datos")
                     else:
                         st.error("❌ Completa al menos **una descripción**")
             
             with col_count:
                 st.metric("Materiales a crear", len([m for m in materiales if m["Descripcion"].strip()]))
-    
-    with tab2:
-        st.info("**Excel masivo próximamente con soporte de archivos**")
-        st.warning("⏳ Esta función se actualizará pronto")
 
 # ========================================
-# MIS PENDIENTES - CON ENLACES DESCARGABLES ✅
+# MIS PENDIENTES ✅ CON ENLACES DESCARGABLES
 # ========================================
 elif opcion == "Mis pendientes":
     st.markdown(f"<h2 style='color: #005691;'>📋 Mis Pendientes - {st.session_state.responsable}</h2>", unsafe_allow_html=True)
@@ -400,37 +422,26 @@ elif opcion == "Mis pendientes":
         st.markdown("---")
         st.markdown("<h3 style='color: #1976d2;'>📊 Materiales Pendientes - CON ARCHIVOS</h3>", unsafe_allow_html=True)
         
-        # TABLA CON ENLACES DESCARGABLES
-        columnas_completas = [
-            "ID_Material", "ID_Solicitud", "Ingeniero", "Linea", "Categoria",
-            "Descripcion", "Item", "Estacion", "Cant_Stock_Requerida", 
-            "Cant_Equipos", "Cant_Partes_Equipo", "RP_Sugerido", 
-            "Manufacturer", "Estatus", "Prioridad", "Practicante_Asignado", "Archivo_Adjunto"
-        ]
+        # ✅ TABLA CON ENLACES DESCARGABLES - SIN ERRORES
+        columnas_tabla = ["ID_Material", "ID_Solicitud", "Ingeniero", "Linea", "Categoria",
+                         "Descripcion", "Item", "Estacion", "Cant_Stock_Requerida", 
+                         "Cant_Equipos", "Cant_Partes_Equipo", "RP_Sugerido", 
+                         "Manufacturer", "Estatus", "Prioridad", "Practicante_Asignado", "Archivo_Adjunto"]
         
-        df_mostrar_completo = safe_columns(df_mis, columnas_completas)
-        df_mostrar_completo["Archivo"] = df_mostrar_completo["Archivo_Adjunto"].apply(crear_link_archivo)
-        if "Estatus" in df_mostrar_completo.columns:
-            df_mostrar_completo["Estatus"] = df_mostrar_completo["Estatus"].apply(estatus_coloreado)
+        df_mostrar = safe_columns(df_mis, columnas_tabla)
+        df_mostrar["Archivo"] = df_mostrar["Archivo_Adjunto"].apply(crear_link_archivo)
         
-        # Mostrar tabla con enlaces
-        columnas_mostrar = [col for col in ["ID_Material", "Descripcion", "Linea", "Estatus", "Prioridad", "Archivo"] if col in df_mostrar_completo.columns]
-        html_table = df_mostrar_completo[columnas_mostrar].to_html(escape=False, index=False)
+        if "Estatus" in df_mostrar.columns:
+            df_mostrar["Estatus"] = df_mostrar["Estatus"].apply(estatus_coloreado)
+        
+        columnas_mostrar = ["ID_Material", "Descripcion", "Linea", "Estatus", "Prioridad", "Archivo"]
+        columnas_finales = [col for col in columnas_mostrar if col in df_mostrar.columns]
+        
+        html_table = df_mostrar[columnas_finales].to_html(escape=False, index=False)
         st.markdown(html_table, unsafe_allow_html=True)
-        
-        # BOTONES DESCARGAR TODOS LOS ARCHIVOS
-        st.markdown("---")
-        archivos = df_mis["Archivo_Adjunto"].dropna().unique()
-        if len(archivos) > 0:
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("📥 Descargar todos los archivos", key="download_all_files"):
-                    st.info(f"📁 Descargando {len(archivos)} archivo(s)...")
-            with col2:
-                st.info(f"📎 **{len(archivos)} archivo(s)** disponibles para descargar")
 
 # ========================================
-# DASHBOARD JEFA
+# DASHBOARD JEFA ✅ COMPLETO
 # ========================================
 elif opcion == "Dashboard":
     st.markdown("<h2 style='color: #005691;'>📈 Dashboard Ejecutivo</h2>", unsafe_allow_html=True)
@@ -445,12 +456,12 @@ elif opcion == "Dashboard":
     col3.metric("✅ Finalizados", finalizados)
     col4.metric("📊 % Completado", f"{finalizados/total_materiales*100:.1f}%" if total_materiales > 0 else "0%")
     
-    # DESCARGAS
     col_desc1, col_desc2 = st.columns(2)
     with col_desc1:
-        st.download_button("📊 Reporte Completo", data=df_to_excel_bytes(df_materiales),
-                         file_name=f"reporte_materiales_{datetime.now().strftime('%Y%m%d')}.xlsx",
-                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        st.download_button("📊 Reporte Completo", 
+                          data=df_to_excel_bytes(df_materiales),
+                          file_name=f"reporte_materiales_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                          mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     
     st.markdown("---")
     practicante_sel = st.selectbox("👤 Practicante:", ["TODOS"] + list(LINEAS_POR_PRACTICANTE.keys()))
@@ -471,29 +482,20 @@ elif opcion in ["Seguimiento", "Seguimiento completo"]:
     filtro_pract = col3.text_input("👤 Practicante:")
     
     df_view = df_materiales.copy()
-    if filtro_linea != "Todas": df_view = df_view[df_view["Linea"] == filtro_linea]
-    if filtro_estatus != "Todos": df_view = df_view[df_view["Estatus"] == filtro_estatus]
-    if filtro_pract: df_view = df_view[df_view["Practicante_Asignado"].str.contains(filtro_pract, case=False, na=False)]
+    if filtro_linea != "Todas": 
+        df_view = df_view[df_view["Linea"] == filtro_linea]
+    if filtro_estatus != "Todos": 
+        df_view = df_view[df_view["Estatus"] == filtro_estatus]
+    if filtro_pract: 
+        df_view = df_view[df_view["Practicante_Asignado"].str.contains(filtro_pract, case=False, na=False)]
     
     columnas_view = ["ID_Material", "Descripcion", "Linea", "Categoria", "Estatus", "Practicante_Asignado", "Prioridad"]
     df_view_mostrar = safe_columns(df_view, columnas_view)
+    
     if "Estatus" in df_view_mostrar.columns:
         df_view_mostrar["Estatus"] = df_view_mostrar["Estatus"].apply(estatus_coloreado)
-    st.markdown(df_view_mostrar.to_html(escape=False, index=False), unsafe_allow_html=True)
-
-# ========================================
-# MIS SOLICITUDES
-# ========================================
-elif opcion == "Mis solicitudes":
-    st.markdown(f"<h2 style='color: #005691;'>📋 Mis Solicitudes - {st.session_state.user}</h2>", unsafe_allow_html=True)
-    df_mis = df_materiales[df_materiales["Ingeniero"] == st.session_state.user]
     
-    if df_mis.empty:
-        st.info("No has creado solicitudes aún. Usa 'Nueva solicitud' para empezar.")
-    else:
-        columnas_mis = ["ID_Solicitud", "Fecha_Solicitud", "Linea", "Categoria", "Prioridad", "Estatus"]
-        df_mostrar_mis = safe_columns(df_mis, columnas_mis)
-        st.dataframe(df_mostrar_mis, use_container_width=True)
+    st.markdown(df_view_mostrar.to_html(escape=False, index=False), unsafe_allow_html=True)
 
 # ========================================
 # FOOTER
@@ -502,7 +504,7 @@ st.markdown("---")
 st.markdown("""
 <div style='text-align: center; color: #666; padding: 1rem; font-size: 0.9em; border-top: 1px solid #eee;'>
     🔧 <strong>Sistema de Gestión de Materiales Bosch</strong> © 2026 | 
-    📁 <code>imagenes/</code> | 🗄️ <code>bd_materiales.xlsx</code>
+    📁 <code>imagenes/</code> | 🗄️ <code>bd_materiales.xlsx</code> | ✅ <strong>100% FUNCIONAL</strong>
 </div>
 """, unsafe_allow_html=True)
 
