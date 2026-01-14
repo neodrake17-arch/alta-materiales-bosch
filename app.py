@@ -1,15 +1,13 @@
-
- # app.py — Bosch Material Management (Enterprise-ready Streamlit)
-# --------------------------------------------------------------
-# ✅ Seguridad: bcrypt hashes + roles (prefer st.secrets)
-# ✅ Persistencia: SQLite
-# ✅ Auditoría: historial completo por cambio de estatus
-# ✅ Archivos: versionado + descargas seguras
-# ✅ Validaciones: campos obligatorios + reglas básicas
-# ✅ UX: estilo Bosch, KPIs con iconos SVG (sin emojis)
-# ✅ Tablas: colores por estatus dentro de la tabla (Pandas Styler)
-# ✅ Seguimiento: Vista Tabla / Vista Kanban (cards + mover estatus)
-# ✅ Dashboard jefa: KPIs + gráficas + exportables + snapshots semanales
+# app.py â€” Bosch Material Management (Minimal + Pro Streamlit)
+# ------------------------------------------------------------
+# âœ… Sidebar Bosch oscuro (alto contraste)
+# âœ… Sin transiciones/animaciones (UI estable)
+# âœ… UI mÃ¡s minimalista (sin sombras/gradientes pesados)
+# âœ… Status coloreado en tablas (Pandas Styler)
+# âœ… Adjuntos: link lÃ³gico "Ver archivo" junto a Manufacturer + Panel de descarga/preview
+# âœ… Kanban + Tabla (toggle) (mover estatus con auditorÃ­a)
+# âœ… Dashboard jefa: KPIs + grÃ¡ficas + exportables + snapshots
+# âœ… SQLite + historial (auditorÃ­a) + archivos versionados
 
 import streamlit as st
 import pandas as pd
@@ -29,11 +27,10 @@ import plotly.express as px
 st.set_page_config(page_title="Bosch | Material Management", layout="wide")
 
 # ---------------------------
-# THEME / CSS (Bosch-like)
+# THEME / CSS (Bosch minimal + readable)
 # ---------------------------
 BOSCH_BLUE = "#005691"
 BOSCH_DARK = "#003D6B"
-BOSCH_LIGHT = "#EAF3FA"
 BOSCH_GRAY = "#F6F7F9"
 SUCCESS = "#2E7D32"
 WARN = "#F57C00"
@@ -43,21 +40,19 @@ INFO = "#6A1B9A"
 st.markdown(
     f"""
 <style>
-:root {{
-  --bosch-blue: {BOSCH_BLUE};
-  --bosch-dark: {BOSCH_DARK};
-  --bosch-light: {BOSCH_LIGHT};
-  --bosch-gray: {BOSCH_GRAY};
-  --success: {SUCCESS};
-  --warn: {WARN};
-  --danger: {DANGER};
-  --info: {INFO};
+/* Disable transitions/animations (no â€œweirdâ€ tab animations) */
+* {{
+  transition: none !important;
+  animation: none !important;
 }}
-h1, h2, h3, h4 {{ color: var(--bosch-blue); font-weight: 800; }}
-h1 {{ font-size: 2.2rem; margin-bottom: .75rem; }}
 
+/* Titles */
+h1, h2, h3, h4 {{ color: {BOSCH_BLUE}; font-weight: 800; }}
+h1 {{ font-size: 2.05rem; margin-bottom: .6rem; }}
+
+/* Buttons */
 .stButton>button {{
-  background: linear-gradient(90deg, var(--bosch-blue), #1976d2) !important;
+  background: {BOSCH_BLUE} !important;
   color: white !important;
   border: 0 !important;
   border-radius: 10px !important;
@@ -65,70 +60,87 @@ h1 {{ font-size: 2.2rem; margin-bottom: .75rem; }}
   font-weight: 700 !important;
 }}
 .stButton>button:hover {{
-  background: linear-gradient(90deg, var(--bosch-dark), var(--bosch-blue)) !important;
+  background: {BOSCH_DARK} !important;
 }}
 
+/* Sidebar: dark Bosch with readable text */
 section[data-testid="stSidebar"] {{
-  background: linear-gradient(180deg, var(--bosch-gray), #ffffff);
+  background: linear-gradient(180deg, {BOSCH_DARK}, {BOSCH_BLUE}) !important;
+}}
+section[data-testid="stSidebar"] * {{
+  color: #ffffff !important;
+}}
+section[data-testid="stSidebar"] input,
+section[data-testid="stSidebar"] textarea {{
+  background: rgba(255,255,255,0.10) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255,255,255,0.25) !important;
+}}
+section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label {{
+  background: rgba(255,255,255,0.08) !important;
+  border-radius: 10px;
+  padding: 6px 10px;
+  margin: 4px 0;
+}}
+section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:hover {{
+  background: rgba(255,255,255,0.14) !important;
 }}
 
+/* Minimal cards */
 .card {{
-  background: white;
-  border-radius: 16px;
-  padding: 16px 16px;
-  box-shadow: 0 8px 18px rgba(0,0,0,0.08);
-  border: 1px solid rgba(0,86,145,0.10);
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 14px 14px;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: none;
   margin-bottom: 10px;
 }}
 .card-title {{
   display:flex; align-items:center; gap:10px;
-  font-weight:900; color: var(--bosch-blue); font-size: 1.02rem;
+  font-weight:900; color: {BOSCH_BLUE}; font-size: 1.0rem;
 }}
 .card-sub {{
   color: #4d4d4d; font-size: .9rem; margin-top: 4px;
 }}
 .smallhelp {{ color:#5c5c5c; font-size: .86rem; }}
 
+/* KPI minimal */
 .kpi {{
-  background: linear-gradient(135deg, var(--bosch-light), #ffffff);
-  border-radius: 16px;
-  padding: 14px 16px;
-  border: 1px solid rgba(0,86,145,0.12);
-  box-shadow: 0 6px 14px rgba(0,0,0,0.06);
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: none;
   display:flex; justify-content:space-between; align-items:center;
 }}
 .kpi-left {{ display:flex; align-items:center; gap:10px; }}
-.kpi .label {{ color:#3a3a3a; font-weight:800; font-size:.92rem; }}
-.kpi .value {{ color: var(--bosch-blue); font-weight:900; font-size: 1.6rem; line-height:1.15; }}
+.kpi .label {{ color:#2f2f2f; font-weight:800; font-size:.92rem; }}
+.kpi .value {{ color: {BOSCH_BLUE}; font-weight:900; font-size: 1.55rem; line-height:1.15; }}
 
+/* Badges for status */
 .badge {{
   display:inline-block; padding: 6px 10px; border-radius: 999px; font-weight:900; font-size:.82rem;
 }}
 .badge-rev {{ background: rgba(0,0,0,0.06); color:#2E2E2E; }}
-.badge-cot {{ background: rgba(46,125,50,0.14); color: var(--success); }}
+.badge-cot {{ background: rgba(46,125,50,0.14); color: {SUCCESS}; }}
 .badge-sap {{ background: rgba(245,124,0,0.18); color: #E65100; }}
-.badge-wait {{ background: rgba(245,124,0,0.12); color: var(--warn); }}
-.badge-info {{ background: rgba(106,27,154,0.14); color: var(--info); }}
+.badge-wait {{ background: rgba(245,124,0,0.12); color: {WARN}; }}
+.badge-info {{ background: rgba(106,27,154,0.14); color: {INFO}; }}
 .badge-fin {{ background: rgba(13,71,161,0.14); color: #0D47A1; }}
 
+/* Login */
 .login-wrap {{
-  background: linear-gradient(135deg, var(--bosch-gray) 0%, #ffffff 55%);
-  border-radius: 22px; padding: 34px;
-  box-shadow: 0 12px 28px rgba(0,0,0,0.10);
-  border: 1px solid rgba(0,86,145,0.10);
+  background: #ffffff;
+  border-radius: 18px; padding: 28px;
+  border: 1px solid rgba(0,0,0,0.07);
   max-width: 560px; margin: 18px auto;
 }}
 .login-title {{
-  font-size: 2.1rem; font-weight: 900; color: var(--bosch-blue); margin: 0 0 8px 0;
+  font-size: 2.0rem; font-weight: 900; color: {BOSCH_BLUE}; margin: 0 0 8px 0;
 }}
 
 .icon {{ width: 18px; height: 18px; display:inline-block; }}
 .icon-lg {{ width: 20px; height: 20px; display:inline-block; }}
-
-.kanban-wrap {{
-  display: flex;
-  gap: 14px;
-}}
 </style>
 """,
     unsafe_allow_html=True,
@@ -141,56 +153,35 @@ def svg_icon(name: str, color: str = BOSCH_BLUE, size: int = 18) -> str:
     icons = {
         "user": f"""
 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M20 21a8 8 0 0 0-16 0"/>
-  <circle cx="12" cy="7" r="4"/>
-</svg>""",
-        "logout": f"""
-<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-  <path d="M16 17l5-5-5-5"/>
-  <path d="M21 12H9"/>
+  <path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/>
 </svg>""",
         "pending": f"""
 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M12 8v5l3 3"/>
-  <circle cx="12" cy="12" r="10"/>
+  <path d="M12 8v5l3 3"/><circle cx="12" cy="12" r="10"/>
 </svg>""",
         "dashboard": f"""
 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M3 3h18v18H3z"/>
-  <path d="M7 13h3v6H7z"/>
-  <path d="M14 7h3v12h-3z"/>
+  <path d="M3 3h18v18H3z"/><path d="M7 13h3v6H7z"/><path d="M14 7h3v12h-3z"/>
 </svg>""",
         "search": f"""
 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <circle cx="11" cy="11" r="7"/>
-  <path d="M21 21l-4.3-4.3"/>
+  <circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>
 </svg>""",
         "update": f"""
 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M21 12a9 9 0 1 1-2.6-6.4"/>
-  <path d="M21 3v6h-6"/>
-</svg>""",
-        "plus": f"""
-<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M12 5v14"/>
-  <path d="M5 12h14"/>
+  <path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/>
 </svg>""",
         "download": f"""
 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-  <path d="M7 10l5 5 5-5"/>
-  <path d="M12 15V3"/>
+  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/>
 </svg>""",
         "file": f"""
 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-  <path d="M14 2v6h6"/>
+  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/>
 </svg>""",
         "chart": f"""
 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="{color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M3 3v18h18"/>
-  <path d="M7 14l3-3 4 4 6-7"/>
+  <path d="M3 3v18h18"/><path d="M7 14l3-3 4 4 6-7"/>
 </svg>""",
     }
     s = icons.get(name, icons["file"])
@@ -209,8 +200,8 @@ FILES_DIR.mkdir(parents=True, exist_ok=True)
 CATEGORIAS_MATERIAL = ["MAZE", "FHMI", "HIBE"]
 
 STATUS = [
-    "En revisión de ingeniería",
-    "En cotización",
+    "En revisiÃ³n de ingenierÃ­a",
+    "En cotizaciÃ³n",
     "En alta SAP",
     "En espera de InfoRecord",
     "Info record creado",
@@ -218,8 +209,8 @@ STATUS = [
 ]
 
 STATUS_BADGE_CLASS = {
-    "En revisión de ingeniería": "badge-rev",
-    "En cotización": "badge-cot",
+    "En revisiÃ³n de ingenierÃ­a": "badge-rev",
+    "En cotizaciÃ³n": "badge-cot",
     "En alta SAP": "badge-sap",
     "En espera de InfoRecord": "badge-wait",
     "Info record creado": "badge-info",
@@ -227,8 +218,8 @@ STATUS_BADGE_CLASS = {
 }
 
 FECHA_MAP = {
-    "En revisión de ingeniería": "Fecha_Revision",
-    "En cotización": "Fecha_Cotizacion",
+    "En revisiÃ³n de ingenierÃ­a": "Fecha_Revision",
+    "En cotizaciÃ³n": "Fecha_Cotizacion",
     "En alta SAP": "Fecha_Alta_SAP",
     "En espera de InfoRecord": "Fecha_InfoRecord",
     "Info record creado": "Fecha_InfoRecord",
@@ -243,36 +234,27 @@ LINEAS_POR_PRACTICANTE = {
 }
 LINEAS = sorted(list(set(sum(LINEAS_POR_PRACTICANTE.values(), []))))
 
-# ---------------------------
-# STATUS COLORS (table styling)
-# ---------------------------
+# Status colors (table styling)
 STATUS_COLOR = {
-    "En revisión de ingeniería": {"bg": "#E0E0E0", "fg": "#2E2E2E"},  # gris
-    "En cotización": {"bg": "#C8E6C9", "fg": "#1B5E20"},             # verde
-    "En alta SAP": {"bg": "#FFE0B2", "fg": "#E65100"},               # naranja
-    "En espera de InfoRecord": {"bg": "#FFF9C4", "fg": "#F57C00"},   # ámbar
-    "Info record creado": {"bg": "#E1BEE7", "fg": "#6A1B9A"},        # morado
-    "Alta finalizada": {"bg": "#BBDEFB", "fg": "#0D47A1"},           # azul (confirmada)
+    "En revisiÃ³n de ingenierÃ­a": {"bg": "#E0E0E0", "fg": "#2E2E2E"},
+    "En cotizaciÃ³n": {"bg": "#C8E6C9", "fg": "#1B5E20"},
+    "En alta SAP": {"bg": "#FFE0B2", "fg": "#E65100"},
+    "En espera de InfoRecord": {"bg": "#FFF9C4", "fg": "#F57C00"},
+    "Info record creado": {"bg": "#E1BEE7", "fg": "#6A1B9A"},
+    "Alta finalizada": {"bg": "#BBDEFB", "fg": "#0D47A1"},
 }
 
+# ---------------------------
+# STYLER HELPERS
+# ---------------------------
 def _style_status_cell(val: str) -> str:
     d = STATUS_COLOR.get(str(val), {"bg": "#EEEEEE", "fg": "#333333"})
     return f"background-color: {d['bg']}; color: {d['fg']}; font-weight: 900;"
 
-def style_df_by_status(df: pd.DataFrame, status_col: str = "Estatus", highlight_row: bool = False):
+def style_df_by_status(df: pd.DataFrame, status_col: str = "Estatus"):
     if df is None or df.empty or status_col not in df.columns:
         return df
-
-    styler = df.style
-
-    if highlight_row:
-        def row_style(row):
-            d = STATUS_COLOR.get(str(row[status_col]), {"bg": "#FFFFFF", "fg": "#000000"})
-            return [f"background-color: {d['bg']}; color: {d['fg']}; font-weight: 650;" for _ in row]
-        styler = styler.apply(row_style, axis=1)
-    else:
-        styler = styler.map(_style_status_cell, subset=[status_col])
-
+    styler = df.style.map(_style_status_cell, subset=[status_col])
     styler = styler.set_properties(**{
         "border": "1px solid rgba(0,0,0,0.06)",
         "font-size": "0.92rem"
@@ -283,7 +265,7 @@ def style_df_by_status(df: pd.DataFrame, status_col: str = "Estatus", highlight_
     return styler
 
 # ---------------------------
-# USERS / AUTH (prefer st.secrets)
+# USERS / AUTH
 # ---------------------------
 def _bcrypt_hash(plain: str) -> str:
     return bcrypt.hashpw(plain.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
@@ -300,8 +282,6 @@ def load_users() -> Dict[str, Dict[str, str]]:
             return dict(st.secrets["users"])  # type: ignore
     except Exception:
         pass
-
-    # Demo fallback (move to secrets for production)
     return {
         "jarol": {"pwd_hash": _bcrypt_hash("jarol123"), "rol": "practicante", "responsable": "Jarol"},
         "lalo":  {"pwd_hash": _bcrypt_hash("lalo123"),  "rol": "practicante", "responsable": "Lalo"},
@@ -323,7 +303,6 @@ def db() -> sqlite3.Connection:
 def init_db():
     conn = db()
     cur = conn.cursor()
-
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS materiales (
@@ -357,7 +336,6 @@ def init_db():
         )
         """
     )
-
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS historial (
@@ -372,7 +350,6 @@ def init_db():
         )
         """
     )
-
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS archivos (
@@ -388,7 +365,6 @@ def init_db():
         )
         """
     )
-
     conn.commit()
     conn.close()
 
@@ -406,6 +382,9 @@ def generar_id_solicitud() -> str:
 def generar_id_material() -> str:
     return f"MAT-{uuid.uuid4().hex[:8].upper()}"
 
+def safe_to_datetime(series: pd.Series) -> pd.Series:
+    return pd.to_datetime(series, errors="coerce")
+
 def iso_week(d: Optional[pd.Timestamp]) -> Optional[str]:
     if d is None or pd.isna(d):
         return None
@@ -418,9 +397,6 @@ def iso_week(d: Optional[pd.Timestamp]) -> Optional[str]:
 def badge_html(status: str) -> str:
     cls = STATUS_BADGE_CLASS.get(status, "badge-rev")
     return f'<span class="badge {cls}">{status}</span>'
-
-def safe_to_datetime(series: pd.Series) -> pd.Series:
-    return pd.to_datetime(series, errors="coerce")
 
 def df_read_materiales() -> pd.DataFrame:
     conn = db()
@@ -460,6 +436,17 @@ def df_read_archivos(material_id: str) -> pd.DataFrame:
         df["Fecha_Subida"] = safe_to_datetime(df["Fecha_Subida"])
     return df
 
+def latest_file_for_material(id_material: str) -> Optional[dict]:
+    df_a = df_read_archivos(id_material)
+    if df_a.empty:
+        return None
+    latest = df_a.iloc[0].to_dict()
+    path = FILES_DIR / str(latest["Nombre_Almacenado"])
+    if not path.exists():
+        return None
+    latest["__path"] = path
+    return latest
+
 def insert_materiales(registros: list[dict]) -> None:
     conn = db()
     cur = conn.cursor()
@@ -483,7 +470,7 @@ def insert_materiales(registros: list[dict]) -> None:
                 int(r.get("Cant_Equipos", 0)),
                 int(r.get("Cant_Partes_Equipo", 0)),
                 r.get("RP_Sugerido",""), r.get("Manufacturer",""),
-                r.get("Estatus","En revisión de ingeniería"),
+                r.get("Estatus","En revisiÃ³n de ingenierÃ­a"),
                 r.get("Practicante_Asignado",""),
                 r.get("Comentario_Estatus",""),
                 r.get("Material_SAP",""),
@@ -529,8 +516,8 @@ def update_estatus_material(
         return False
 
     estatus_old = row["Estatus"]
-
     fecha_col = FECHA_MAP.get(nuevo_estatus)
+
     fields = ["Estatus = ?", "Comentario_Estatus = ?"]
     params = [nuevo_estatus, comentario]
 
@@ -540,7 +527,6 @@ def update_estatus_material(
     if inforecord_sap is not None:
         fields.append("InfoRecord_SAP = ?")
         params.append(inforecord_sap)
-
     if fecha_col:
         fields.append(f"{fecha_col} = ?")
         params.append(now_iso())
@@ -556,7 +542,6 @@ def update_estatus_material(
 def guardar_archivo_versionado(uploaded_file, id_material: str, usuario: str) -> Optional[dict]:
     if uploaded_file is None:
         return None
-
     df_arch = df_read_archivos(id_material)
     next_version = 1 if df_arch.empty else int(df_arch["Version"].max()) + 1
 
@@ -614,11 +599,9 @@ def template_excel_bytes() -> bytes:
     ]
     df = pd.DataFrame(columns=cols)
     info = pd.DataFrame(
-        [
-            ["INSTRUCCIONES",
-             "1) No borres encabezados. 2) 'Descripcion' obligatoria. 3) Categoria: MAZE/FHMI/HIBE.",
-             "4) Linea debe existir en catálogo. 5) Prioridad: Alta/Media/Baja. 6) Sube el archivo en 'Excel masivo'."]
-        ],
+        [["INSTRUCCIONES",
+          "1) No borres encabezados. 2) 'Descripcion' obligatoria. 3) Categoria: MAZE/FHMI/HIBE.",
+          "4) Linea debe existir en catÃ¡logo. 5) Prioridad: Alta/Media/Baja."]],
         columns=["Campo", "Regla", "Notas"]
     )
     return excel_bytes_from_dfs({"Template": df, "Guia": info})
@@ -628,17 +611,17 @@ def validate_record(r: dict) -> list[str]:
     if not str(r.get("Descripcion","")).strip():
         errors.append("Descripcion obligatoria.")
     if str(r.get("Linea","")) not in LINEAS:
-        errors.append("Linea inválida (fuera de catálogo).")
+        errors.append("Linea invÃ¡lida (fuera de catÃ¡logo).")
     if str(r.get("Prioridad","")) not in ["Alta","Media","Baja"]:
-        errors.append("Prioridad inválida.")
+        errors.append("Prioridad invÃ¡lida.")
     if str(r.get("Categoria","")) and str(r.get("Categoria","")) not in CATEGORIAS_MATERIAL:
-        errors.append("Categoria inválida.")
+        errors.append("Categoria invÃ¡lida.")
     try:
         stock = float(r.get("Cant_Stock_Requerida", 0) or 0)
         if stock < 0:
             errors.append("Cant_Stock_Requerida no puede ser negativa.")
     except Exception:
-        errors.append("Cant_Stock_Requerida debe ser numérica.")
+        errors.append("Cant_Stock_Requerida debe ser numÃ©rica.")
     return errors
 
 def assign_practicante(linea: str) -> str:
@@ -647,43 +630,36 @@ def assign_practicante(linea: str) -> str:
             return resp
     return ""
 
-def require_login():
-    if not st.session_state.get("logged", False):
-        st.stop()
-
 def require_role(allowed: list[str]):
     if st.session_state.get("rol") not in allowed:
-        st.error("Acceso denegado: no tienes permisos para esta sección.")
+        st.error("Acceso denegado.")
         st.stop()
-
-# ---------------------------
-# SESSION STATE
-# ---------------------------
-if "logged" not in st.session_state:
-    st.session_state.logged = False
 
 # ---------------------------
 # LOGIN
 # ---------------------------
+if "logged" not in st.session_state:
+    st.session_state.logged = False
+
 if not st.session_state.logged:
     st.markdown(
         f"""
 <div class="login-wrap">
   <div class="login-title">Bosch Material Management</div>
-  <div class="smallhelp">Acceso seguro · Trazabilidad · Control de flujo</div>
+  <div class="smallhelp">Acceso seguro Â· Trazabilidad Â· Control de flujo</div>
 </div>
 """,
         unsafe_allow_html=True,
     )
 
     if "users" not in st.secrets:
-        st.warning("Modo demo activo: mover usuarios a st.secrets para producción (Streamlit Cloud).")
+        st.warning("Modo demo activo: mover usuarios a st.secrets para Streamlit Cloud.")
 
     col1, col2 = st.columns([1.2, 1])
     with col1:
         user = st.text_input("Usuario", placeholder="jarol, lalo, jime, niko, admin")
     with col2:
-        pwd = st.text_input("Contraseña", type="password", placeholder="••••••••")
+        pwd = st.text_input("ContraseÃ±a", type="password", placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢")
 
     if st.button("Acceder", use_container_width=True):
         u = USERS.get(user)
@@ -694,66 +670,57 @@ if not st.session_state.logged:
             st.session_state.responsable = u["responsable"]
             st.rerun()
         else:
-            st.error("Usuario o contraseña incorrectos")
+            st.error("Usuario o contraseÃ±a incorrectos")
 
     st.stop()
 
 # ---------------------------
-# HEADER
+# HEADER + DATA
 # ---------------------------
-require_login()
-
-h1, h2, h3 = st.columns([3.2, 1.2, 1])
-with h1:
+colA, colB, colC = st.columns([3.2, 1.2, 1])
+with colA:
     st.markdown("<h1>Bosch Material Management</h1>", unsafe_allow_html=True)
-with h2:
+with colB:
     st.markdown(
         f"""
 <div class="card">
-  <div class="card-title">{svg_icon("user")} Sesión</div>
-  <div class="card-sub"><b>{st.session_state.user}</b> · {st.session_state.rol}</div>
+  <div class="card-title">{svg_icon("user")} SesiÃ³n</div>
+  <div class="card-sub"><b>{st.session_state.user}</b> Â· {st.session_state.rol}</div>
 </div>
 """,
         unsafe_allow_html=True,
     )
-with h3:
-    if st.button("Cerrar sesión", use_container_width=True):
+with colC:
+    if st.button("Cerrar sesiÃ³n", use_container_width=True):
         for k in list(st.session_state.keys()):
             del st.session_state[k]
         st.rerun()
 
-# ---------------------------
-# LOAD DATA
-# ---------------------------
 df_materiales = df_read_materiales()
 
 # ---------------------------
-# UI HELPERS
+# UI BLOCKS
 # ---------------------------
 def kpi_row(df: pd.DataFrame):
     if df is None or df.empty:
-        st.info("No hay datos para mostrar.")
+        st.info("No hay datos.")
         return
-    counts = {s: int((df["Estatus"] == s).sum()) for s in STATUS}
 
+    counts = {s: int((df["Estatus"] == s).sum()) for s in STATUS}
     items = [
-        ("Revisión", counts["En revisión de ingeniería"], "search", "#2E2E2E"),
-        ("Cotización", counts["En cotización"], "dashboard", SUCCESS),
+        ("RevisiÃ³n", counts["En revisiÃ³n de ingenierÃ­a"], "search", "#2E2E2E"),
+        ("CotizaciÃ³n", counts["En cotizaciÃ³n"], "dashboard", SUCCESS),
         ("Alta SAP", counts["En alta SAP"], "file", "#E65100"),
-        ("Espera InfoRecord", counts["En espera de InfoRecord"], "pending", WARN),
-        ("InfoRecord creado", counts["Info record creado"], "update", INFO),
+        ("Espera IR", counts["En espera de InfoRecord"], "pending", WARN),
+        ("IR creado", counts["Info record creado"], "update", INFO),
         ("Finalizado", counts["Alta finalizada"], "chart", "#0D47A1"),
     ]
-
     cols = st.columns(6)
-    for col, (label, val, icon, ic_color) in zip(cols, items):
+    for col, (label, val, icon, ic) in zip(cols, items):
         col.markdown(
             f"""
 <div class="kpi">
-  <div class="kpi-left">
-    {svg_icon(icon, color=ic_color, size=20)}
-    <div class="label">{label}</div>
-  </div>
+  <div class="kpi-left">{svg_icon(icon, color=ic, size=20)}<div class="label">{label}</div></div>
   <div class="value">{val}</div>
 </div>
 """,
@@ -768,26 +735,59 @@ def render_legend():
             f"<span style='display:inline-block;margin:4px 6px;padding:6px 10px;border-radius:999px;"
             f"background:{d['bg']};color:{d['fg']};font-weight:900;font-size:.82rem;'>{s}</span>"
         )
-    st.markdown("<div class='card'><div class='card-title'>Leyenda de estatus</div>" + "".join(chips) + "</div>", unsafe_allow_html=True)
+    st.markdown("<div class='card'><div class='card-title'>Leyenda</div>" + "".join(chips) + "</div>", unsafe_allow_html=True)
 
-def render_table(df: pd.DataFrame, compact: bool, highlight_row: bool = False):
+def attachments_panel(df_source: pd.DataFrame, key_prefix: str):
+    if df_source.empty or "ID_Material" not in df_source.columns:
+        return
+    with st.expander("Adjuntos (descargar / preview)", expanded=False):
+        mid = st.selectbox("Material", df_source["ID_Material"].tolist(), key=f"{key_prefix}_adj_sel")
+        meta = latest_file_for_material(mid)
+        if not meta:
+            st.info("Este material no tiene adjunto.")
+            return
+
+        p: Path = meta["__path"]
+        original = meta.get("Nombre_Original", "archivo")
+        mime = meta.get("Mime") or "application/octet-stream"
+
+        st.download_button(
+            "Descargar adjunto",
+            data=p.read_bytes(),
+            file_name=original,
+            mime=mime,
+            use_container_width=True
+        )
+
+        if str(original).lower().endswith((".png",".jpg",".jpeg",".webp")):
+            st.image(p.read_bytes(), caption=original, use_container_width=True)
+
+def render_table(df: pd.DataFrame, compact: bool, key_prefix: str):
     if df.empty:
         st.info("No hay registros.")
         return
 
+    # Build display columns
     if compact:
         cols = ["ID_Solicitud", "Linea", "Descripcion", "Prioridad", "Estatus"]
         cols = [c for c in cols if c in df.columns]
         df_disp = df[cols].copy()
     else:
         cols = [
-            "Fecha_Solicitud", "Ingeniero", "Linea", "Prioridad",
-            "Item", "Descripcion", "Estacion", "Frecuencia_Cambio",
-            "Cant_Stock_Requerida", "Cant_Equipos", "Cant_Partes_Equipo",
-            "RP_Sugerido", "Manufacturer", "Estatus"
+            "Fecha_Solicitud","Ingeniero","Linea","Prioridad",
+            "Item","Descripcion","Estacion","Frecuencia_Cambio",
+            "Cant_Stock_Requerida","Cant_Equipos","Cant_Partes_Equipo",
+            "RP_Sugerido","Manufacturer","Adjunto","Estatus"
         ]
-        cols = [c for c in cols if c in df.columns]
-        df_disp = df[cols].copy()
+        # Create a working copy with required cols
+        base_cols = [c for c in cols if c in df.columns or c == "Adjunto"]
+        df_disp = df.copy()
+
+        # Create "Adjunto" near Manufacturer (text indicator)
+        if "Adjunto" in base_cols:
+            df_disp["Adjunto"] = df_disp["ID_Material"].apply(lambda mid: "Ver archivo" if latest_file_for_material(mid) else "â€”")
+
+        df_disp = df_disp[[c for c in base_cols if c in df_disp.columns]].copy()
 
     if "Fecha_Solicitud" in df_disp.columns:
         df_disp["Fecha_Solicitud"] = pd.to_datetime(df_disp["Fecha_Solicitud"], errors="coerce")
@@ -796,33 +796,35 @@ def render_table(df: pd.DataFrame, compact: bool, highlight_row: bool = False):
         f"""
 <div class="card">
   <div class="card-title">{svg_icon("file")} Tabla</div>
-  <div class="card-sub">Estatus coloreado por proceso · Ordena y filtra</div>
+  <div class="card-sub">Estatus coloreado por proceso</div>
 </div>
 """,
         unsafe_allow_html=True,
     )
     render_legend()
 
-    styled = style_df_by_status(df_disp, status_col="Estatus", highlight_row=highlight_row)
+    styled = style_df_by_status(df_disp, status_col="Estatus")
     st.dataframe(styled, use_container_width=True, hide_index=True)
+
+    # Attachments expander
+    attachments_panel(df, key_prefix=key_prefix)
 
 def seguimiento_update_block(df_scope: pd.DataFrame):
     st.markdown(
         f"""
 <div class="card">
   <div class="card-title">{svg_icon("update")} Actualizar estatus</div>
-  <div class="card-sub">Auditoría: cada cambio requiere comentario.</div>
+  <div class="card-sub">Comentario obligatorio (auditorÃ­a)</div>
 </div>
 """,
         unsafe_allow_html=True,
     )
 
     if df_scope.empty:
-        st.info("No hay materiales para actualizar en este alcance.")
+        st.info("No hay materiales para actualizar.")
         return
 
-    id_material = st.selectbox("Material", df_scope["ID_Material"].tolist())
-
+    id_material = st.selectbox("Material", df_scope["ID_Material"].tolist(), key="upd_mid")
     row = df_scope[df_scope["ID_Material"] == id_material].iloc[0]
     estatus_actual = row["Estatus"]
 
@@ -834,76 +836,66 @@ def seguimiento_update_block(df_scope: pd.DataFrame):
 
     c1, c2 = st.columns([1, 1.2])
     with c1:
-        nuevo_estatus = st.selectbox("Nuevo estatus", STATUS, index=STATUS.index(estatus_actual))
-        comentario = st.text_area("Comentario (obligatorio)", height=90, placeholder="Ej. Cotización enviada / Falta InfoRecord / Alta completada…")
+        nuevo_estatus = st.selectbox("Nuevo estatus", STATUS, index=STATUS.index(estatus_actual), key="upd_new")
+        comentario = st.text_area("Comentario (obligatorio)", height=90, key="upd_cmt")
     with c2:
-        st.markdown("<div class='card'><div class='card-title'>Campos SAP / InfoRecord</div><div class='card-sub'>Opcional</div></div>", unsafe_allow_html=True)
-        mat_sap = st.text_input("Material SAP", value=str(row.get("Material_SAP","") or ""))
-        ir_sap = st.text_input("InfoRecord SAP", value=str(row.get("InfoRecord_SAP","") or ""))
-
-        up_file = st.file_uploader("Adjuntar archivo (versionado)", type=["png","jpg","jpeg","pdf"], key=f"upl_{id_material}")
+        st.markdown("<div class='card'><div class='card-title'>SAP / InfoRecord</div><div class='card-sub'>Opcional</div></div>", unsafe_allow_html=True)
+        mat_sap = st.text_input("Material SAP", value=str(row.get("Material_SAP","") or ""), key="upd_sap")
+        ir_sap = st.text_input("InfoRecord SAP", value=str(row.get("InfoRecord_SAP","") or ""), key="upd_ir")
+        up_file = st.file_uploader("Adjuntar archivo (versionado)", type=["png","jpg","jpeg","pdf"], key="upd_file")
 
     b1, b2, b3 = st.columns([1, 1, 1])
     with b1:
-        if st.button("Guardar cambio", use_container_width=True):
-            if not comentario.strip():
-                st.error("El comentario es obligatorio.")
+        if st.button("Guardar cambio", use_container_width=True, key="upd_save"):
+            if not str(comentario).strip():
+                st.error("Comentario obligatorio.")
             else:
                 ok = update_estatus_material(
                     id_material=id_material,
                     nuevo_estatus=nuevo_estatus,
-                    comentario=comentario.strip(),
+                    comentario=str(comentario).strip(),
                     usuario=st.session_state.user,
                     rol=st.session_state.rol,
-                    material_sap=mat_sap.strip(),
-                    inforecord_sap=ir_sap.strip(),
+                    material_sap=str(mat_sap).strip(),
+                    inforecord_sap=str(ir_sap).strip(),
                 )
                 if up_file is not None:
                     guardar_archivo_versionado(up_file, id_material, st.session_state.user)
-
                 if ok:
-                    st.success(f"Estatus actualizado a: {nuevo_estatus}")
+                    st.success("Actualizado.")
                     st.rerun()
                 else:
                     st.error("No se pudo actualizar.")
 
     with b2:
-        if st.button("Ver historial", use_container_width=True):
-            df_h = df_read_historial(id_material)
-            st.dataframe(df_h, use_container_width=True, hide_index=True)
+        if st.button("Ver historial", use_container_width=True, key="upd_hist"):
+            st.dataframe(df_read_historial(id_material), use_container_width=True, hide_index=True)
 
     with b3:
-        if st.button("Ver archivos", use_container_width=True):
-            df_a = df_read_archivos(id_material)
-            if df_a.empty:
-                st.info("Sin archivos.")
+        if st.button("Ver adjunto", use_container_width=True, key="upd_adj"):
+            meta = latest_file_for_material(id_material)
+            if not meta:
+                st.info("Sin adjunto.")
             else:
-                st.dataframe(df_a[["Version","Nombre_Original","Fecha_Subida","Subido_Por","Size_Bytes"]], use_container_width=True, hide_index=True)
-                latest = df_a.iloc[0]
-                p = FILES_DIR / latest["Nombre_Almacenado"]
-                if p.exists():
-                    st.download_button(
-                        "Descargar última versión",
-                        data=p.read_bytes(),
-                        file_name=latest["Nombre_Original"],
-                        mime=latest["Mime"] or "application/octet-stream",
-                        use_container_width=True
-                    )
+                p: Path = meta["__path"]
+                original = meta.get("Nombre_Original", "archivo")
+                mime = meta.get("Mime") or "application/octet-stream"
+                st.download_button("Descargar", data=p.read_bytes(), file_name=original, mime=mime, use_container_width=True)
+                if str(original).lower().endswith((".png",".jpg",".jpeg",".webp")):
+                    st.image(p.read_bytes(), caption=original, use_container_width=True)
 
-def kanban_view(df: pd.DataFrame):
+def kanban_view(df: pd.DataFrame, key_prefix: str):
     if df.empty:
-        st.info("No hay registros para mostrar.")
+        st.info("No hay registros.")
         return
 
-    # filtros rápidos
     c1, c2 = st.columns([1.2, 1])
     with c1:
-        q = st.text_input("Buscar en Kanban", placeholder="ID / Solicitud / Descripción / Item")
+        q = st.text_input("Buscar", placeholder="ID / Solicitud / DescripciÃ³n / Item", key=f"{key_prefix}_kb_q")
     with c2:
-        pr = st.multiselect("Prioridad", ["Alta","Media","Baja"], default=["Alta","Media","Baja"], key="kanban_pri")
+        pr = st.multiselect("Prioridad", ["Alta","Media","Baja"], default=["Alta","Media","Baja"], key=f"{key_prefix}_kb_pr")
 
-    dfx = df.copy()
-    dfx = dfx[dfx["Prioridad"].isin(pr)].copy()
+    dfx = df[df["Prioridad"].isin(pr)].copy()
     if q.strip():
         ql = q.strip().lower()
         dfx = dfx[
@@ -919,37 +911,35 @@ def kanban_view(df: pd.DataFrame):
         d = STATUS_COLOR[status]
         col.markdown(
             f"""
-<div class="card" style="border-left:8px solid {d['fg']}; background: linear-gradient(135deg, {d['bg']}, #ffffff);">
-  <div class="card-title">{status}</div>
+<div class="card" style="border-left:6px solid {d['fg']};">
+  <div class="card-title" style="gap:8px;">{status}</div>
   <div class="card-sub"><b>{int((dfx["Estatus"]==status).sum())}</b> items</div>
 </div>
 """,
             unsafe_allow_html=True,
         )
 
-        items = dfx[dfx["Estatus"] == status].sort_values(["Prioridad","Fecha_Solicitud"], ascending=[True, False]).head(25)
-
+        items = dfx[dfx["Estatus"] == status].sort_values(["Prioridad","Fecha_Solicitud"], ascending=[True, False]).head(20)
         for _, r in items.iterrows():
             col.markdown(
                 f"""
-<div class="card" style="padding:12px 12px;margin-top:10px;">
+<div class="card" style="padding:12px 12px;">
   <div style="display:flex;justify-content:space-between;gap:10px;">
     <div style="font-weight:900;color:{BOSCH_BLUE};">{r["ID_Material"]}</div>
     <div style="font-weight:800;color:#333;">{r["Prioridad"]}</div>
   </div>
-  <div style="margin-top:6px;font-weight:800;color:#2d2d2d;">{str(r["Descripcion"])[:85]}</div>
+  <div style="margin-top:6px;font-weight:800;color:#2d2d2d;">{str(r["Descripcion"])[:80]}</div>
   <div class="smallhelp" style="margin-top:6px;">
-    Solicitud: <b>{r["ID_Solicitud"]}</b><br/>
-    Línea: <b>{r["Linea"]}</b> · Item: <b>{str(r["Item"])[:20]}</b>
+    <b>{r["ID_Solicitud"]}</b> Â· {r["Linea"]}
   </div>
 </div>
 """,
                 unsafe_allow_html=True,
             )
 
-            move_to = col.selectbox("Mover a", STATUS, index=STATUS.index(status), key=f"mv_{r['ID_Material']}")
-            comment = col.text_input("Comentario", placeholder="Motivo del cambio", key=f"cm_{r['ID_Material']}")
-            if col.button("Aplicar", key=f"ap_{r['ID_Material']}"):
+            move_to = col.selectbox("Mover a", STATUS, index=STATUS.index(status), key=f"{key_prefix}_mv_{r['ID_Material']}")
+            comment = col.text_input("Comentario", placeholder="Motivo del cambio", key=f"{key_prefix}_cm_{r['ID_Material']}")
+            if col.button("Aplicar", key=f"{key_prefix}_ap_{r['ID_Material']}"):
                 if not comment.strip():
                     col.error("Comentario obligatorio.")
                 else:
@@ -977,24 +967,26 @@ def charts_dashboard(df: pd.DataFrame):
 
     c1, c2 = st.columns(2)
     with c1:
-        fig1 = px.pie(dfx, names="Estatus", title="Distribución por estatus")
+        st.markdown(f"<div class='card'><div class='card-title'>{svg_icon('chart')} DistribuciÃ³n por estatus</div></div>", unsafe_allow_html=True)
+        fig1 = px.pie(dfx, names="Estatus")
         st.plotly_chart(fig1, use_container_width=True)
 
     with c2:
+        st.markdown(f"<div class='card'><div class='card-title'>{svg_icon('chart')} Conteo semanal (ISO)</div></div>", unsafe_allow_html=True)
         weekly = dfx[dfx["Semana_ISO"].notna()].groupby(["Semana_ISO","Estatus"]).size().reset_index(name="Cantidad")
-        fig2 = px.bar(weekly, x="Semana_ISO", y="Cantidad", color="Estatus", title="Conteo semanal por estatus (ISO)")
+        fig2 = px.bar(weekly, x="Semana_ISO", y="Cantidad", color="Estatus")
         st.plotly_chart(fig2, use_container_width=True)
 
-    st.markdown("<div class='card'><div class='card-title'>Pendientes por practicante</div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='card'><div class='card-title'>{svg_icon('chart')} Pendientes por practicante</div></div>", unsafe_allow_html=True)
     pend = dfx[dfx["Estatus"] != "Alta finalizada"].groupby(["Practicante_Asignado","Estatus"]).size().reset_index(name="Cantidad")
-    fig3 = px.bar(pend, x="Practicante_Asignado", y="Cantidad", color="Estatus", title="Pendientes por practicante y estatus")
+    fig3 = px.bar(pend, x="Practicante_Asignado", y="Cantidad", color="Estatus")
     st.plotly_chart(fig3, use_container_width=True)
 
 # ---------------------------
 # SIDEBAR NAV
 # ---------------------------
 with st.sidebar:
-    st.markdown("### Menú")
+    st.markdown("### NavegaciÃ³n")
 
     if st.session_state.rol == "practicante":
         lineas_usuario = LINEAS_POR_PRACTICANTE.get(st.session_state.responsable, [])
@@ -1003,10 +995,10 @@ with st.sidebar:
 
         st.markdown(
             f"""
-<div class="card">
-  <div class="card-title">{svg_icon("pending", color=DANGER)} Pendientes</div>
-  <div class="card-sub"><span style="font-size:1.6rem;font-weight:900;color:{DANGER};">{pendientes}</span></div>
-  <div class="smallhelp">Líneas: {", ".join(lineas_usuario) if lineas_usuario else "—"}</div>
+<div class="card" style="background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.18);">
+  <div class="card-title" style="color:#fff;">{svg_icon("pending", color="#fff")} Pendientes</div>
+  <div class="card-sub" style="color:#fff;"><span style="font-size:1.6rem;font-weight:900;color:#fff;">{pendientes}</span></div>
+  <div class="smallhelp" style="color:#fff;">LÃ­neas: {", ".join(lineas_usuario) if lineas_usuario else "â€”"}</div>
 </div>
 """,
             unsafe_allow_html=True,
@@ -1017,12 +1009,12 @@ with st.sidebar:
         opcion = st.radio("Secciones", ["Dashboard ejecutivo", "Seguimiento", "Nueva solicitud"], index=0)
 
 # ---------------------------
-# PRACTICANTE: MIS PENDIENTES
+# PRACTICANTE: MIS PENDIENTES (FULL INFO) + ADJUNTO INDICADOR
 # ---------------------------
 if opcion == "Mis pendientes":
     require_role(["practicante"])
 
-    st.markdown(f"## Mis pendientes · {st.session_state.responsable}")
+    st.markdown(f"## Mis pendientes Â· {st.session_state.responsable}")
 
     lineas_usuario = LINEAS_POR_PRACTICANTE.get(st.session_state.responsable, [])
     df_my = df_materiales[df_materiales["Linea"].isin(lineas_usuario)].copy() if len(df_materiales) else pd.DataFrame()
@@ -1030,13 +1022,15 @@ if opcion == "Mis pendientes":
 
     f1, f2, f3 = st.columns([1, 1, 1.2])
     with f1:
-        pr = st.multiselect("Prioridad", ["Alta","Media","Baja"], default=["Alta","Media","Baja"])
+        pr = st.multiselect("Prioridad", ["Alta","Media","Baja"], default=["Alta","Media","Baja"], key="mp_pr")
     with f2:
-        stt = st.multiselect("Estatus", STATUS, default=STATUS)
+        stt = st.multiselect("Estatus", STATUS, default=STATUS, key="mp_st")
     with f3:
-        q = st.text_input("Buscar", placeholder="ID / Item / Descripción / Estación")
+        q = st.text_input("Buscar", placeholder="ID / Item / DescripciÃ³n / EstaciÃ³n", key="mp_q")
 
-    if not df_pend.empty:
+    if df_pend.empty:
+        st.info("Sin pendientes.")
+    else:
         df_f = df_pend[df_pend["Prioridad"].isin(pr) & df_pend["Estatus"].isin(stt)].copy()
         if q.strip():
             ql = q.strip().lower()
@@ -1049,7 +1043,7 @@ if opcion == "Mis pendientes":
             ].copy()
 
         kpi_row(df_f)
-        render_table(df_f.sort_values(["Prioridad","Fecha_Solicitud"], ascending=[True, False]), compact=False, highlight_row=False)
+        render_table(df_f.sort_values(["Prioridad","Fecha_Solicitud"], ascending=[True, False]), compact=False, key_prefix="mp")
 
         exp = df_f.copy()
         exp["Semana_ISO"] = exp["Fecha_Solicitud"].apply(iso_week)
@@ -1060,15 +1054,12 @@ if opcion == "Mis pendientes":
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
         )
-    else:
-        st.success("Sin pendientes.")
 
 # ---------------------------
-# PRACTICANTE: SEGUIMIENTO (BETA) + VISTA TABLA / KANBAN + UPDATE
+# PRACTICANTE: SEGUIMIENTO (BETA) (COMPACT) + TABLA/KANBAN + UPDATE
 # ---------------------------
 if opcion == "Seguimiento (BETA)":
     require_role(["practicante"])
-
     st.markdown("## Seguimiento (BETA)")
 
     lineas_usuario = LINEAS_POR_PRACTICANTE.get(st.session_state.responsable, [])
@@ -1079,11 +1070,11 @@ if opcion == "Seguimiento (BETA)":
 
     c1, c2, c3 = st.columns([1, 1, 1.2])
     with c1:
-        linea = st.selectbox("Línea", ["Todas"] + lineas_usuario)
+        linea = st.selectbox("LÃ­nea", ["Todas"] + lineas_usuario, key="sb_linea")
     with c2:
-        estatus = st.selectbox("Estatus", ["Todos"] + STATUS)
+        estatus = st.selectbox("Estatus", ["Todos"] + STATUS, key="sb_est")
     with c3:
-        b = st.text_input("Buscar", placeholder="SOL-... / descripción...")
+        b = st.text_input("Buscar", placeholder="SOL-... / descripciÃ³n...", key="sb_q")
 
     df_f = df_scope.copy()
     if linea != "Todas":
@@ -1097,54 +1088,49 @@ if opcion == "Seguimiento (BETA)":
             | df_f["Descripcion"].astype(str).str.lower().str.contains(bl)
         ].copy()
 
-    view = st.radio("Vista", ["Tabla", "Kanban"], horizontal=True)
+    view = st.radio("Vista", ["Tabla", "Kanban"], horizontal=True, key="sb_view")
 
     if view == "Tabla":
-        render_table(df_f.sort_values(["Fecha_Solicitud"], ascending=False), compact=True, highlight_row=False)
+        render_table(df_f.sort_values(["Fecha_Solicitud"], ascending=False), compact=True, key_prefix="sb")
     else:
-        kanban_view(df_f)
+        kanban_view(df_f, key_prefix="sb")
 
     st.markdown("---")
     seguimiento_update_block(df_scope)
 
 # ---------------------------
-# NUEVA SOLICITUD (Practicante + Jefa)
+# NUEVA SOLICITUD (FORM + EXCEL MASIVO)
 # ---------------------------
 if opcion == "Nueva solicitud":
-    if st.session_state.rol not in ["practicante", "jefa"]:
-        st.error("Acceso denegado.")
-        st.stop()
-
     st.markdown("## Nueva solicitud")
 
     c1, c2, c3 = st.columns(3)
-    ingeniero = c1.text_input("Ingeniero solicitante", value=st.session_state.user)
-    linea_sel = c2.selectbox("Línea", LINEAS)
-    prioridad_sel = c3.selectbox("Prioridad", ["Alta", "Media", "Baja"])
+    ingeniero = c1.text_input("Ingeniero solicitante", value=st.session_state.user, key="ns_ing")
+    linea_sel = c2.selectbox("LÃ­nea", LINEAS, key="ns_lin")
+    prioridad_sel = c3.selectbox("Prioridad", ["Alta", "Media", "Baja"], key="ns_pri")
 
-    tabs = st.tabs(["Formulario (1–5)", "Excel masivo (>5)"])
+    tabs = st.tabs(["Formulario (1â€“5)", "Excel masivo (>5)"])
 
     with tabs[0]:
-        num = st.slider("Número de materiales", 1, 5, 1)
+        num = st.slider("NÃºmero de materiales", 1, 5, 1, key="ns_num")
         with st.form("form_solicitud"):
             mats = []
             for i in range(num):
                 st.markdown(f"### Material {i+1}")
                 a, b = st.columns([1.15, 1])
                 with a:
-                    item = st.text_input("Item/Nº parte", key=f"item_{i}")
-                    desc = st.text_input("Descripción (obligatorio)", key=f"desc_{i}")
-                    est = st.text_input("Estación/Máquina", key=f"est_{i}")
-                    cat = st.selectbox("Categoría", [""] + CATEGORIAS_MATERIAL, key=f"cat_{i}")
-                    freq = st.text_input("Frecuencia de cambio", key=f"freq_{i}")
+                    item = st.text_input("Item/NÂº parte", key=f"ns_item_{i}")
+                    desc = st.text_input("DescripciÃ³n (obligatorio)", key=f"ns_desc_{i}")
+                    est = st.text_input("EstaciÃ³n/MÃ¡quina", key=f"ns_est_{i}")
+                    cat = st.selectbox("CategorÃ­a", [""] + CATEGORIAS_MATERIAL, key=f"ns_cat_{i}")
+                    freq = st.text_input("Frecuencia de cambio", key=f"ns_freq_{i}")
                 with b:
-                    stock = st.number_input("Stock requerido", min_value=0.0, value=0.0, step=0.5, key=f"stock_{i}")
-                    equipos = st.number_input("Cantidad de equipos", min_value=0, value=0, step=1, key=f"eq_{i}")
-                    partes = st.number_input("Partes por equipo", min_value=0, value=0, step=1, key=f"part_{i}")
-                    rp = st.text_input("RP sugerido", key=f"rp_{i}")
-                    manu = st.text_input("Manufacturer / Proveedor", key=f"manu_{i}")
-
-                up = st.file_uploader("Adjunto (opcional)", type=["png","jpg","jpeg","pdf"], key=f"file_{i}")
+                    stock = st.number_input("Stock requerido", min_value=0.0, value=0.0, step=0.5, key=f"ns_stock_{i}")
+                    equipos = st.number_input("Cantidad de equipos", min_value=0, value=0, step=1, key=f"ns_eq_{i}")
+                    partes = st.number_input("Partes por equipo", min_value=0, value=0, step=1, key=f"ns_part_{i}")
+                    rp = st.text_input("RP sugerido", key=f"ns_rp_{i}")
+                    manu = st.text_input("Manufacturer / Proveedor", key=f"ns_manu_{i}")
+                up = st.file_uploader("Adjunto (opcional)", type=["png","jpg","jpeg","pdf"], key=f"ns_file_{i}")
 
                 mats.append({
                     "Ingeniero": ingeniero,
@@ -1163,20 +1149,21 @@ if opcion == "Nueva solicitud":
                     "Archivo": up
                 })
 
-            comentario_general = st.text_area("Comentario general", height=90)
+            comentario_general = st.text_area("Comentario general", height=90, key="ns_cg")
             submitted = st.form_submit_button("Guardar solicitud", use_container_width=True)
 
         if submitted:
             id_sol = generar_id_solicitud()
             registros = []
             errors_all = []
+
             for m in mats:
                 rec = dict(m)
                 rec["Comentario_Solicitud"] = comentario_general
                 rec["ID_Solicitud"] = id_sol
                 rec["ID_Material"] = generar_id_material()
                 rec["Fecha_Solicitud"] = now_iso()
-                rec["Estatus"] = "En revisión de ingeniería"
+                rec["Estatus"] = "En revisiÃ³n de ingenierÃ­a"
                 rec["Practicante_Asignado"] = assign_practicante(rec["Linea"])
                 rec["Comentario_Estatus"] = ""
                 rec["Material_SAP"] = ""
@@ -1190,13 +1177,13 @@ if opcion == "Nueva solicitud":
                 errs = validate_record(rec)
                 if errs:
                     errors_all.append((rec["ID_Material"], errs))
-                    continue
-                registros.append(rec)
+                else:
+                    registros.append(rec)
 
             if errors_all:
-                st.error("Errores detectados en algunos materiales (no se guardaron esos registros):")
+                st.error("Errores detectados (no se guardaron esos registros):")
                 for mid, errs in errors_all:
-                    st.write(f"{mid} → " + "; ".join(errs))
+                    st.write(f"{mid} â†’ " + "; ".join(errs))
 
             if registros:
                 insert_materiales(registros)
@@ -1204,7 +1191,6 @@ if opcion == "Nueva solicitud":
                     write_historial_event(r["ID_Material"], "CREADO", r["Estatus"], "Solicitud creada", st.session_state.user, st.session_state.rol)
                     if r.get("Archivo") is not None:
                         guardar_archivo_versionado(r["Archivo"], r["ID_Material"], st.session_state.user)
-
                 st.success(f"Solicitud {id_sol} guardada con {len(registros)} materiales.")
                 st.rerun()
 
@@ -1212,12 +1198,13 @@ if opcion == "Nueva solicitud":
         st.markdown(
             f"""
 <div class="card">
-  <div class="card-title">{svg_icon("download")} Carga masiva (Excel)</div>
-  <div class="card-sub">Descarga el template, llena los materiales y súbelo aquí.</div>
+  <div class="card-title">{svg_icon("download")} Carga masiva</div>
+  <div class="card-sub">Descarga el template, llena y sÃºbelo.</div>
 </div>
 """,
             unsafe_allow_html=True,
         )
+
         st.download_button(
             "Descargar template (Critical Evaluation)",
             data=template_excel_bytes(),
@@ -1225,12 +1212,13 @@ if opcion == "Nueva solicitud":
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True
         )
-        up_xlsx = st.file_uploader("Subir Excel de carga masiva", type=["xlsx"])
+
+        up_xlsx = st.file_uploader("Subir Excel", type=["xlsx"], key="ns_xlsx")
         if up_xlsx is not None:
             try:
                 xls = pd.ExcelFile(up_xlsx)
                 if "Template" not in xls.sheet_names:
-                    st.error("El Excel debe contener la hoja 'Template' del archivo descargado.")
+                    st.error("El Excel debe contener la hoja 'Template'.")
                 else:
                     df_up = pd.read_excel(xls, "Template").dropna(how="all")
                     if df_up.empty:
@@ -1252,12 +1240,13 @@ if opcion == "Nueva solicitud":
                             id_sol = generar_id_solicitud()
                             registros = []
                             errors_all = []
+
                             for _, row in df_up.iterrows():
                                 rec = row.to_dict()
                                 rec["ID_Solicitud"] = id_sol
                                 rec["ID_Material"] = generar_id_material()
                                 rec["Fecha_Solicitud"] = now_iso()
-                                rec["Estatus"] = "En revisión de ingeniería"
+                                rec["Estatus"] = "En revisiÃ³n de ingenierÃ­a"
                                 rec["Practicante_Asignado"] = assign_practicante(str(rec.get("Linea","")))
                                 rec["Comentario_Estatus"] = ""
                                 rec["Material_SAP"] = ""
@@ -1275,11 +1264,11 @@ if opcion == "Nueva solicitud":
                                     registros.append(rec)
 
                             if errors_all:
-                                st.error("Errores detectados (revisa estos registros):")
+                                st.error("Errores detectados (ejemplos):")
                                 for mid, errs, d in errors_all[:40]:
-                                    st.write(f"{mid} · {d} → " + "; ".join(errs))
+                                    st.write(f"{mid} Â· {d} â†’ " + "; ".join(errs))
                                 if len(errors_all) > 40:
-                                    st.caption(f"… y {len(errors_all)-40} más.")
+                                    st.caption(f"â€¦ y {len(errors_all)-40} mÃ¡s.")
 
                             if registros:
                                 insert_materiales(registros)
@@ -1289,18 +1278,18 @@ if opcion == "Nueva solicitud":
                                 st.rerun()
 
             except Exception as e:
-                st.error("No se pudo leer el archivo. Verifica el formato.")
+                st.error("No se pudo leer el archivo.")
                 st.caption(str(e))
 
 # ---------------------------
-# JEFA/ADMIN: DASHBOARD + CHARTS + EXPORTS
+# JEFA/ADMIN: DASHBOARD + CHARTS + EXPORTS + SNAPSHOTS
 # ---------------------------
 if opcion == "Dashboard ejecutivo":
     require_role(["jefa"])
     st.markdown("## Dashboard ejecutivo")
 
     if df_materiales.empty:
-        st.info("Aún no hay datos.")
+        st.info("AÃºn no hay datos.")
     else:
         kpi_row(df_materiales)
         charts_dashboard(df_materiales)
@@ -1314,7 +1303,7 @@ if opcion == "Dashboard ejecutivo":
             f"""
 <div class="card">
   <div class="card-title">{svg_icon("chart")} Conteo por semana (ISO)</div>
-  <div class="card-sub">Comparación semanal (ej. semana 15 vs 16 vs 17).</div>
+  <div class="card-sub">ComparaciÃ³n semanal.</div>
 </div>
 """,
             unsafe_allow_html=True,
@@ -1354,9 +1343,9 @@ if opcion == "Dashboard ejecutivo":
             use_container_width=True
         )
 
-        st.markdown("<div class='card'><div class='card-title'>Snapshot por semana</div><div class='card-sub'>Selecciona semana ISO y descarga el corte.</div></div>", unsafe_allow_html=True)
+        st.markdown("<div class='card'><div class='card-title'>Snapshot por semana</div><div class='card-sub'>Selecciona semana ISO.</div></div>", unsafe_allow_html=True)
         weeks = sorted([w for w in df_trend["Semana_ISO"].dropna().unique().tolist()])
-        sel_week = st.selectbox("Semana", weeks if weeks else ["—"])
+        sel_week = st.selectbox("Semana", weeks if weeks else ["â€”"], key="db_week")
 
         if weeks:
             snap = df_trend[df_trend["Semana_ISO"] == sel_week].copy()
@@ -1372,7 +1361,7 @@ if opcion == "Dashboard ejecutivo":
             )
 
 # ---------------------------
-# JEFA/ADMIN: SEGUIMIENTO + TABLA / KANBAN + UPDATE
+# JEFA/ADMIN: SEGUIMIENTO + TABLA/KANBAN + UPDATE + EXPORT FILTERED
 # ---------------------------
 if opcion == "Seguimiento":
     require_role(["jefa"])
@@ -1385,13 +1374,13 @@ if opcion == "Seguimiento":
 
         c1, c2, c3, c4 = st.columns([1, 1, 1, 1.2])
         with c1:
-            linea = st.selectbox("Línea", ["Todas"] + LINEAS)
+            linea = st.selectbox("LÃ­nea", ["Todas"] + LINEAS, key="jf_lin")
         with c2:
-            pract = st.selectbox("Practicante", ["Todos"] + list(LINEAS_POR_PRACTICANTE.keys()))
+            pract = st.selectbox("Practicante", ["Todos"] + list(LINEAS_POR_PRACTICANTE.keys()), key="jf_pr")
         with c3:
-            est = st.selectbox("Estatus", ["Todos"] + STATUS)
+            est = st.selectbox("Estatus", ["Todos"] + STATUS, key="jf_est")
         with c4:
-            q = st.text_input("Buscar", placeholder="ID / solicitud / descripción")
+            q = st.text_input("Buscar", placeholder="ID / solicitud / descripciÃ³n", key="jf_q")
 
         df_f = df_materiales.copy()
         if linea != "Todas":
@@ -1409,12 +1398,11 @@ if opcion == "Seguimiento":
                 | df_f["Item"].astype(str).str.lower().str.contains(ql)
             ].copy()
 
-        view = st.radio("Vista", ["Tabla", "Kanban"], horizontal=True, key="view_jefa")
-
+        view = st.radio("Vista", ["Tabla", "Kanban"], horizontal=True, key="jf_view")
         if view == "Tabla":
-            render_table(df_f.sort_values(["Fecha_Solicitud"], ascending=False), compact=True, highlight_row=False)
+            render_table(df_f.sort_values(["Fecha_Solicitud"], ascending=False), compact=True, key_prefix="jf")
         else:
-            kanban_view(df_f)
+            kanban_view(df_f, key_prefix="jf")
 
         st.markdown("---")
         seguimiento_update_block(df_f)
@@ -1426,4 +1414,3 @@ if opcion == "Seguimiento":
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             use_container_width=True,
         )
-
